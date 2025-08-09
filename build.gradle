@@ -1,0 +1,84 @@
+plugins {
+    id 'java'
+    id 'application'
+}
+
+group = 'com.crypto'
+version = '1.0.0'
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'org.json:json:20231013'
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.9.2'
+}
+
+application {
+    mainClass = 'CryptoApp'
+}
+
+// === NO BUILD FILES CONFIGURATION ===
+// Disable all artifact creation tasks
+jar.enabled = false
+tasks.withType(Jar).configureEach { enabled = false }
+tasks.withType(War).configureEach { enabled = false }
+tasks.withType(Tar).configureEach { enabled = false }
+tasks.withType(Zip).configureEach { enabled = false }
+
+// Use temporary build directory
+buildDir = file("${System.getProperty('java.io.tmpdir')}/crypto-build-${System.currentTimeMillis()}")
+
+// Development run task - no artifacts
+run {
+    systemProperties = System.getProperties()
+    dependsOn compileJava
+    
+    doFirst {
+        println "🚀 Starting Crypto Portfolio Tracker..."
+    }
+    
+    finalizedBy {
+        delete buildDir
+        println "🧹 Cleaned up build files"
+    }
+}
+
+// Clean development task
+task dev(type: JavaExec) {
+    group = 'application'
+    description = 'Development mode - no build artifacts'
+    mainClass = 'CryptoApp'
+    classpath = sourceSets.main.runtimeClasspath
+    systemProperties = System.getProperties()
+    dependsOn compileJava
+    
+    doFirst {
+        println "🛠️ Development Mode: Starting application..."
+    }
+    
+    finalizedBy {
+        delete buildDir
+    }
+}
+
+// Override build task to prevent artifacts
+tasks.named('build') {
+    dependsOn compileJava, compileTestJava
+    finalizedBy {
+        delete buildDir
+    }
+}
+
+// Auto-cleanup after any gradle task
+gradle.buildFinished {
+    if (project.buildDir.exists()) {
+        project.buildDir.deleteDir()
+    }
+}
