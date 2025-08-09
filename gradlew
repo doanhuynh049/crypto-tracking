@@ -4,6 +4,10 @@
 # Gradle wrapper script for Unix/Linux
 ##############################################################################
 
+# Auto-set Java environment for this project
+export JAVA_HOME=/opt/java-17
+export PATH=$JAVA_HOME/bin:$PATH
+
 # Attempt to set APP_HOME
 APP_HOME="$(cd "$(dirname "$0")" && pwd)"
 
