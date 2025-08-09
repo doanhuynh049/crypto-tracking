@@ -34,7 +34,7 @@ public class PortfolioContentPanel extends JPanel {
     private Timer refreshTimer;
     private DecimalFormat priceFormat = new DecimalFormat("$#,##0.00");
     private DecimalFormat percentFormat = new DecimalFormat("+#0.00%;-#0.00%");
-    private DecimalFormat amountFormat = new DecimalFormat("#,##0.####");
+    private DecimalFormat amountFormat = new DecimalFormat("#,##0.########");
     
     // Crypto data storage
     private List<CryptoData> cryptoList;
@@ -58,6 +58,8 @@ public class PortfolioContentPanel extends JPanel {
         }
         setupUI();
         loadInitialPrices();
+        // Fetch AI advice once during initialization
+        refreshAiAdvice();
         startAutoRefresh();
     }
     
@@ -90,6 +92,11 @@ public class PortfolioContentPanel extends JPanel {
         // Create control panel
         JPanel controlPanel = createControlPanel();
         add(controlPanel, BorderLayout.SOUTH);
+        
+        // Setup click-to-deselect after all components are created
+        SwingUtilities.invokeLater(() -> {
+            setupClickToDeselect();
+        });
     }
     
     private JPanel createStatusPanel() {
@@ -126,7 +133,7 @@ public class PortfolioContentPanel extends JPanel {
         tablePanel.setBackground(BACKGROUND_COLOR);
         
         // Create table model with enhanced columns
-        String[] columnNames = {"💎", "Name", "Holdings", "Avg Cost", "Current", "Entry Target", "3M Target", "Long Target", "Total Value", "P&L", "% Change", "Entry"};
+        String[] columnNames = {"💎", "Name", "Holdings", "Avg Cost", "Current", "Entry Target", "3M Target", "Long Target", "Total Value", "P&L", "% Change", "AI Advice"};
         tableModel = new DefaultTableModel(columnNames, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -276,7 +283,7 @@ public class PortfolioContentPanel extends JPanel {
         cryptoTable.getColumnModel().getColumn(8).setMinWidth(100);  // Total Value
         cryptoTable.getColumnModel().getColumn(9).setMinWidth(90);   // P&L
         cryptoTable.getColumnModel().getColumn(10).setMinWidth(85);  // % Change
-        cryptoTable.getColumnModel().getColumn(11).setMinWidth(50);  // Entry Status
+        cryptoTable.getColumnModel().getColumn(11).setMinWidth(80);  // AI Advice
         
         // Set preferred widths based on content
         autoFitColumnWidths();
@@ -294,32 +301,170 @@ public class PortfolioContentPanel extends JPanel {
         
         // Custom cell renderer with enhanced styling
         cryptoTable.setDefaultRenderer(Object.class, new EnhancedPortfolioTableCellRenderer());
+        
+        // Add mouse listener for AI advice column clicks
+        cryptoTable.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                int row = cryptoTable.rowAtPoint(e.getPoint());
+                int column = cryptoTable.columnAtPoint(e.getPoint());
+                
+                // Check if clicked on AI Advice column (column 11)
+                if (column == 11 && row >= 0 && row < cryptoList.size()) {
+                    showAiAnalysisDialog(cryptoList.get(row));
+                }
+            }
+        });
     }
     
     /**
-     * Auto-fit column widths based on content
+     * Setup click-to-deselect functionality for the table
+     */
+    private void setupClickToDeselect() {
+        MouseAdapter deselectListener = new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                // Clear table selection when clicking outside the table
+                if (e.getSource() != cryptoTable) {
+                    cryptoTable.clearSelection();
+                }
+            }
+        };
+        
+        // Add special handler for the table's scroll pane to handle clicks in empty areas
+        Component scrollPane = cryptoTable.getParent().getParent(); // JScrollPane
+        if (scrollPane instanceof JScrollPane) {
+            JScrollPane sp = (JScrollPane) scrollPane;
+            
+            // Add listener to the scroll pane viewport
+            sp.getViewport().addMouseListener(new MouseAdapter() {
+                @Override
+                public void mousePressed(MouseEvent e) {
+                    // Convert point to table coordinates
+                    Point tablePoint = SwingUtilities.convertPoint(
+                        sp.getViewport(), e.getPoint(), cryptoTable);
+                    
+                    // Check if the click is outside the table bounds or in an empty area
+                    if (tablePoint.y < 0 || tablePoint.y >= cryptoTable.getHeight() ||
+                        tablePoint.x < 0 || tablePoint.x >= cryptoTable.getWidth() ||
+                        cryptoTable.rowAtPoint(tablePoint) == -1) {
+                        cryptoTable.clearSelection();
+                    }
+                }
+            });
+        }
+        
+        // Add the listener to the main panel and its components
+        this.addMouseListener(deselectListener);
+        
+        // Add listener to status panel, control panel, and other components
+        addDeselectListenerToComponents(this, deselectListener);
+    }
+    
+    /**
+     * Recursively add deselect listener to all components except the table
+     */
+    private void addDeselectListenerToComponents(Container container, MouseAdapter listener) {
+        for (Component component : container.getComponents()) {
+            if (component != cryptoTable && !(component instanceof JScrollPane && 
+                ((JScrollPane) component).getViewport().getView() == cryptoTable)) {
+                component.addMouseListener(listener);
+                
+                if (component instanceof Container) {
+                    addDeselectListenerToComponents((Container) component, listener);
+                }
+            }
+        }
+    }
+    
+    /**
+     * Auto-fit column widths based on content with improved data length calculation
      */
     private void autoFitColumnWidths() {
+        FontMetrics fm = cryptoTable.getFontMetrics(cryptoTable.getFont());
+        FontMetrics headerFm = cryptoTable.getTableHeader().getFontMetrics(cryptoTable.getTableHeader().getFont());
+        
         for (int column = 0; column < cryptoTable.getColumnCount(); column++) {
             int maxWidth = 0;
             
-            // Check header width
-            javax.swing.table.TableCellRenderer headerRenderer = cryptoTable.getTableHeader().getDefaultRenderer();
-            Component headerComp = headerRenderer.getTableCellRendererComponent(
-                cryptoTable, cryptoTable.getColumnName(column), false, false, 0, column);
-            maxWidth = Math.max(maxWidth, headerComp.getPreferredSize().width);
+            // Check header width with font metrics
+            String headerText = cryptoTable.getColumnName(column);
+            int headerWidth = headerFm.stringWidth(headerText) + 30; // Add padding for header
+            maxWidth = Math.max(maxWidth, headerWidth);
             
-            // Check data widths
+            // Check data widths using string length and font metrics
             for (int row = 0; row < cryptoTable.getRowCount(); row++) {
-                javax.swing.table.TableCellRenderer cellRenderer = cryptoTable.getCellRenderer(row, column);
-                Component comp = cellRenderer.getTableCellRendererComponent(
-                    cryptoTable, cryptoTable.getValueAt(row, column), false, false, row, column);
-                maxWidth = Math.max(maxWidth, comp.getPreferredSize().width);
+                Object value = cryptoTable.getValueAt(row, column);
+                if (value != null) {
+                    String text = value.toString();
+                    int textWidth = fm.stringWidth(text);
+                    
+                    // Add extra padding for different column types
+                    int padding = 30; // Default padding
+                    if (column == 0) { // Symbol column - needs less space
+                        padding = 20;
+                    } else if (column == 1) { // Name column - needs more space
+                        padding = 40;
+                    } else if (column >= 2 && column <= 10) { // Numeric columns
+                        padding = 35;
+                    } else if (column == 11) { // AI Advice column
+                        padding = 30;
+                    }
+                    
+                    maxWidth = Math.max(maxWidth, textWidth + padding);
+                }
             }
             
-            // Add padding and set preferred width
-            maxWidth += 20; // Add padding
+            // Set minimum and maximum width constraints
+            int minWidth = getColumnMinWidth(column);
+            int maxAllowedWidth = getColumnMaxWidth(column);
+            
+            maxWidth = Math.max(maxWidth, minWidth);
+            maxWidth = Math.min(maxWidth, maxAllowedWidth);
+            
             cryptoTable.getColumnModel().getColumn(column).setPreferredWidth(maxWidth);
+        }
+    }
+    
+    /**
+     * Get minimum width for each column type
+     */
+    private int getColumnMinWidth(int column) {
+        switch (column) {
+            case 0: return 50;   // Code
+            case 1: return 120;  // Name
+            case 2: return 85;   // Holdings
+            case 3: return 90;   // Avg Cost
+            case 4: return 90;   // Current
+            case 5: return 85;   // Entry Target
+            case 6: return 80;   // 3M Target
+            case 7: return 80;   // Long Target
+            case 8: return 100;  // Total Value
+            case 9: return 90;   // P&L
+            case 10: return 85;  // % Change
+            case 11: return 80;  // AI Advice
+            default: return 80;
+        }
+    }
+    
+    /**
+     * Get maximum width for each column type to prevent overly wide columns
+     */
+    private int getColumnMaxWidth(int column) {
+        switch (column) {
+            case 0: return 80;   // Code
+            case 1: return 200;  // Name
+            case 2: return 120;  // Holdings
+            case 3: return 120;  // Avg Cost
+            case 4: return 120;  // Current
+            case 5: return 120;  // Entry Target
+            case 6: return 110;  // 3M Target
+            case 7: return 110;  // Long Target
+            case 8: return 150;  // Total Value
+            case 9: return 130;  // P&L
+            case 10: return 110; // % Change
+            case 11: return 120; // AI Advice
+            default: return 150;
         }
     }
     
@@ -330,6 +475,9 @@ public class PortfolioContentPanel extends JPanel {
         refreshButton = createModernButton("🔄 Refresh Prices", PRIMARY_COLOR);
         refreshButton.addActionListener(e -> refreshPrices());
         
+        JButton refreshAiButton = createModernButton("🤖 Refresh AI", new Color(156, 39, 176));
+        refreshAiButton.addActionListener(e -> refreshAiAdvice());
+        
         addCryptoButton = createModernButton("➕ Add Crypto", SUCCESS_COLOR);
         addCryptoButton.addActionListener(e -> showAddCryptoDialog());
         
@@ -337,6 +485,7 @@ public class PortfolioContentPanel extends JPanel {
         removeButton.addActionListener(e -> removeCrypto());
         
         controlPanel.add(refreshButton);
+        controlPanel.add(refreshAiButton);
         controlPanel.add(addCryptoButton);
         controlPanel.add(removeButton);
         
@@ -373,13 +522,32 @@ public class PortfolioContentPanel extends JPanel {
     
     private void loadInitialPrices() {
         SwingUtilities.invokeLater(() -> {
+            // Sort by total value before displaying
+            sortCryptosByTotalValue();
+            
             tableModel.setRowCount(0);
             for (CryptoData crypto : cryptoList) {
                 addCryptoToTable(crypto);
             }
             updatePortfolioValue(); // Update portfolio value display
-            autoFitColumnWidths(); // Auto-fit column widths after loading all data
+            // Auto-fit column widths after loading all data with a delay to ensure proper calculation
+            SwingUtilities.invokeLater(() -> {
+                autoFitColumnWidths();
+                cryptoTable.revalidate();
+                cryptoTable.repaint();
+            });
             refreshPrices();
+        });
+    }
+    
+    /**
+     * Sort cryptocurrencies by total value in descending order (highest first)
+     */
+    private void sortCryptosByTotalValue() {
+        cryptoList.sort((crypto1, crypto2) -> {
+            double value1 = crypto1.getTotalValue();
+            double value2 = crypto2.getTotalValue();
+            return Double.compare(value2, value1); // Descending order
         });
     }
     
@@ -396,12 +564,15 @@ public class PortfolioContentPanel extends JPanel {
             priceFormat.format(crypto.getTotalValue()), // Total Value
             priceFormat.format(crypto.getProfitLoss()), // Profit/Loss
             percentFormat.format(crypto.getProfitLossPercentage()), // % Change
-            crypto.getEntryStatusEmoji()                // Entry Status
+            crypto.getAiAdvice() + " ℹ️"                 // AI Advice with info icon
         };
         tableModel.addRow(rowData);
         
-        // Auto-fit column widths after adding new row
-        SwingUtilities.invokeLater(this::autoFitColumnWidths);
+        // Auto-fit column widths after adding new row with a slight delay
+        SwingUtilities.invokeLater(() -> {
+            autoFitColumnWidths();
+            cryptoTable.revalidate();
+        });
     }
     
     private String getStatusEmoji(CryptoData crypto) {
@@ -430,6 +601,7 @@ public class PortfolioContentPanel extends JPanel {
             @Override
             protected Void doInBackground() throws Exception {
                 fetchCryptoPrices();
+                // AI advice is fetched separately only when needed, not on every price refresh
                 return null;
             }
             
@@ -488,25 +660,127 @@ public class PortfolioContentPanel extends JPanel {
         }
     }
     
+    /**
+     * Refresh AI advice for all cryptocurrencies (called separately from price refresh)
+     */
+    private void refreshAiAdvice() {
+        statusLabel.setText("📊 Portfolio Status: Updating AI advice...");
+        
+        SwingWorker<Void, Void> worker = new SwingWorker<Void, Void>() {
+            @Override
+            protected Void doInBackground() throws Exception {
+                fetchAiAdvice();
+                return null;
+            }
+            
+            @Override
+            protected void done() {
+                updateTableData();
+                statusLabel.setText("📊 Portfolio Status: Ready");
+            }
+        };
+        worker.execute();
+    }
+
+    /**
+     * Fetch AI advice for all cryptocurrencies asynchronously
+     */
+    private void fetchAiAdvice() {
+        try {
+            // Fetch AI advice for each cryptocurrency asynchronously
+            for (CryptoData crypto : cryptoList) {
+                AiAdviceService.getAdviceAsync(crypto)
+                    .thenAccept(advice -> {
+                        crypto.setAiAdvice(advice);
+                        // Update table on EDT
+                        SwingUtilities.invokeLater(() -> {
+                            updateTableData();
+                        });
+                    })
+                    .exceptionally(throwable -> {
+                        System.err.println("Failed to get AI advice for " + crypto.symbol + ": " + throwable.getMessage());
+                        // Set fallback advice
+                        crypto.setAiAdvice("Hold Position");
+                        SwingUtilities.invokeLater(() -> {
+                            updateTableData();
+                        });
+                        return null;
+                    });
+            }
+        } catch (Exception e) {
+            System.err.println("Error initiating AI advice fetch: " + e.getMessage());
+        }
+    }
+    
     private void updateTableData() {
         if (isUpdatingTable) return; // Prevent recursive calls
         
         isUpdatingTable = true;
         try {
-            for (int i = 0; i < cryptoList.size() && i < tableModel.getRowCount(); i++) {
-                CryptoData crypto = cryptoList.get(i);
+            // Sort by total value first to maintain ranking
+            sortCryptosByTotalValue();
+            
+            // If the order has changed, rebuild the entire table
+            if (tableModel.getRowCount() != cryptoList.size()) {
+                rebuildTable();
+            } else {
+                // Check if order has changed by comparing symbols
+                boolean orderChanged = false;
+                for (int i = 0; i < cryptoList.size() && i < tableModel.getRowCount(); i++) {
+                    String currentSymbol = tableModel.getValueAt(i, 0).toString();
+                    String expectedSymbol = cryptoList.get(i).symbol.toUpperCase();
+                    if (!currentSymbol.equals(expectedSymbol)) {
+                        orderChanged = true;
+                        break;
+                    }
+                }
                 
-                tableModel.setValueAt(priceFormat.format(crypto.currentPrice), i, 4);        // Current Price
-                tableModel.setValueAt(priceFormat.format(crypto.getTotalValue()), i, 8);     // Total Value
-                tableModel.setValueAt(priceFormat.format(crypto.getProfitLoss()), i, 9);     // Profit/Loss
-                tableModel.setValueAt(percentFormat.format(crypto.getProfitLossPercentage()), i, 10); // % Change
-                tableModel.setValueAt(crypto.getEntryStatusEmoji(), i, 11);                   // Entry Status
+                if (orderChanged) {
+                    rebuildTable();
+                } else {
+                    // Just update the data values
+                    for (int i = 0; i < cryptoList.size() && i < tableModel.getRowCount(); i++) {
+                        CryptoData crypto = cryptoList.get(i);
+                        
+                        tableModel.setValueAt(priceFormat.format(crypto.currentPrice), i, 4);        // Current Price
+                        tableModel.setValueAt(priceFormat.format(crypto.getTotalValue()), i, 8);     // Total Value
+                        tableModel.setValueAt(priceFormat.format(crypto.getProfitLoss()), i, 9);     // Profit/Loss
+                        tableModel.setValueAt(percentFormat.format(crypto.getProfitLossPercentage()), i, 10); // % Change
+                        tableModel.setValueAt(crypto.getAiAdvice() + " ℹ️", i, 11);           // AI Advice with info icon
+                    }
+                }
             }
             
-            // Auto-fit column widths after updating data
-            SwingUtilities.invokeLater(this::autoFitColumnWidths);
+            // Auto-fit column widths after updating data (less frequently)
+            if (cryptoList.size() <= 10) { // Only auto-fit for smaller datasets to avoid performance issues
+                SwingUtilities.invokeLater(this::autoFitColumnWidths);
+            }
         } finally {
             isUpdatingTable = false;
+        }
+    }
+    
+    /**
+     * Rebuild the entire table when order has changed
+     */
+    private void rebuildTable() {
+        tableModel.setRowCount(0);
+        for (CryptoData crypto : cryptoList) {
+            Object[] rowData = {
+                crypto.symbol.toUpperCase(),                // Code
+                crypto.name,                                // Name
+                amountFormat.format(crypto.holdings),       // Holding Amount
+                priceFormat.format(crypto.avgBuyPrice),     // Average Cost
+                priceFormat.format(crypto.currentPrice),    // Current Price
+                priceFormat.format(crypto.expectedEntry),   // Entry Target
+                priceFormat.format(crypto.targetPrice3Month), // Target 3M
+                priceFormat.format(crypto.targetPriceLongTerm), // Target Long
+                priceFormat.format(crypto.getTotalValue()), // Total Value
+                priceFormat.format(crypto.getProfitLoss()), // Profit/Loss
+                percentFormat.format(crypto.getProfitLossPercentage()), // % Change
+                crypto.getAiAdvice() + " ℹ️"                 // AI Advice with info icon
+            };
+            tableModel.addRow(rowData);
         }
     }
     
@@ -554,7 +828,7 @@ public class PortfolioContentPanel extends JPanel {
         setPlaceholderText(expectedEntryField, "e.g., 45000.0");
         setPlaceholderText(target3MonthField, "e.g., 60000.0");
         setPlaceholderText(targetLongTermField, "e.g., 100000.0");
-        setPlaceholderText(holdingsField, "e.g., 0.5, 2.0, 1000");
+        setPlaceholderText(holdingsField, "e.g., 0.00032973, 0.5, 2.0, 1000");
         setPlaceholderText(avgBuyPriceField, "e.g., 45000.0");
         
         // Create labels with improved styling
@@ -636,7 +910,11 @@ public class PortfolioContentPanel extends JPanel {
                 
                 CryptoData newCrypto = new CryptoData(id, name, symbol, 0.0, expectedPrice, expectedEntry, target3Month, targetLongTerm, holdings, avgBuyPrice);
                 cryptoList.add(newCrypto);
-                addCryptoToTable(newCrypto);
+                
+                // Sort and rebuild the table to maintain ranking by total value
+                sortCryptosByTotalValue();
+                rebuildTable();
+                
                 savePortfolioData();
                 updatePortfolioValue();
                 dialog.dispose();
@@ -783,6 +1061,7 @@ public class PortfolioContentPanel extends JPanel {
                 props.setProperty(prefix + "targetPriceLongTerm", String.valueOf(crypto.targetPriceLongTerm));
                 props.setProperty(prefix + "holdings", String.valueOf(crypto.holdings));
                 props.setProperty(prefix + "avgBuyPrice", String.valueOf(crypto.avgBuyPrice));
+                props.setProperty(prefix + "aiAdvice", crypto.aiAdvice != null ? crypto.aiAdvice : "Loading...");
             }
             
             props.store(output, "Crypto Portfolio Data Backup");
@@ -846,6 +1125,7 @@ public class PortfolioContentPanel extends JPanel {
                 String targetPriceLongTermStr = props.getProperty(prefix + "targetPriceLongTerm");
                 String holdingsStr = props.getProperty(prefix + "holdings");
                 String avgBuyPriceStr = props.getProperty(prefix + "avgBuyPrice");
+                String aiAdviceStr = props.getProperty(prefix + "aiAdvice");
                 
                 if (id != null && name != null && symbol != null && 
                     expectedPriceStr != null && holdingsStr != null && avgBuyPriceStr != null) {
@@ -857,7 +1137,9 @@ public class PortfolioContentPanel extends JPanel {
                     double holdings = Double.parseDouble(holdingsStr);
                     double avgBuyPrice = Double.parseDouble(avgBuyPriceStr);
                     
-                    cryptoList.add(new CryptoData(id, name, symbol, 0.0, expectedPrice, expectedEntry, targetPrice3Month, targetPriceLongTerm, holdings, avgBuyPrice));
+                    CryptoData crypto = new CryptoData(id, name, symbol, 0.0, expectedPrice, expectedEntry, targetPrice3Month, targetPriceLongTerm, holdings, avgBuyPrice);
+                    crypto.setAiAdvice(aiAdviceStr != null ? aiAdviceStr : "Loading...");
+                    cryptoList.add(crypto);
                 }
             }
             
@@ -900,7 +1182,9 @@ public class PortfolioContentPanel extends JPanel {
                     double holdings = Double.parseDouble(holdingsStr);
                     double avgBuyPrice = Double.parseDouble(avgBuyPriceStr);
                     
-                    cryptoList.add(new CryptoData(id, name, symbol, 0.0, expectedPrice, expectedEntry, targetPrice3Month, targetPriceLongTerm, holdings, avgBuyPrice));
+                    CryptoData crypto = new CryptoData(id, name, symbol, 0.0, expectedPrice, expectedEntry, targetPrice3Month, targetPriceLongTerm, holdings, avgBuyPrice);
+                    crypto.setAiAdvice("Loading..."); // Set default for old files
+                    cryptoList.add(crypto);
                 }
             }
             
@@ -955,7 +1239,11 @@ public class PortfolioContentPanel extends JPanel {
         
         if (result == JOptionPane.YES_OPTION) {
             cryptoList.remove(selectedRow);
-            tableModel.removeRow(selectedRow);
+            
+            // Sort and rebuild the table to maintain ranking by total value
+            sortCryptosByTotalValue();
+            rebuildTable();
+            
             savePortfolioData();
             updatePortfolioValue();
             // Auto-fit column widths after removing row
@@ -964,9 +1252,118 @@ public class PortfolioContentPanel extends JPanel {
     }
     
     private void startAutoRefresh() {
-        // Auto-refresh every 30 seconds
-        refreshTimer = new Timer(30000, e -> refreshPrices());
+        // Auto-refresh every 10 seconds
+        refreshTimer = new Timer(10000, e -> refreshPrices());
         refreshTimer.start();
+    }
+    
+    /**
+     * Show AI analysis dialog with detailed recommendations
+     */
+    private void showAiAnalysisDialog(CryptoData crypto) {
+        JDialog dialog = new JDialog((Frame) SwingUtilities.getWindowAncestor(this), 
+                                   "AI Analysis for " + crypto.name + " (" + crypto.symbol + ")", true);
+        dialog.setLayout(new BorderLayout());
+        dialog.getContentPane().setBackground(SURFACE_COLOR);
+        
+        // Create title panel
+        JPanel titlePanel = new JPanel(new BorderLayout());
+        titlePanel.setBackground(PRIMARY_COLOR);
+        titlePanel.setBorder(new EmptyBorder(15, 20, 15, 20));
+        
+        JLabel titleLabel = new JLabel("🤖 AI Investment Analysis");
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        titleLabel.setForeground(Color.WHITE);
+        
+        JLabel cryptoLabel = new JLabel(crypto.name + " (" + crypto.symbol + ")");
+        cryptoLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        cryptoLabel.setForeground(Color.WHITE);
+        
+        titlePanel.add(titleLabel, BorderLayout.NORTH);
+        titlePanel.add(cryptoLabel, BorderLayout.SOUTH);
+        
+        // Create analysis text area
+        JTextArea analysisArea = new JTextArea();
+        analysisArea.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        analysisArea.setBackground(SURFACE_COLOR);
+        analysisArea.setForeground(TEXT_PRIMARY);
+        analysisArea.setEditable(false);
+        analysisArea.setWrapStyleWord(true);
+        analysisArea.setLineWrap(true);
+        analysisArea.setBorder(new EmptyBorder(20, 20, 20, 20));
+        
+        // Set loading text initially
+        analysisArea.setText("🔄 Generating AI analysis...\n\nPlease wait while our AI analyzes " + crypto.name + " data...");
+        
+        // Create scroll pane for analysis
+        JScrollPane scrollPane = new JScrollPane(analysisArea);
+        scrollPane.setBorder(null);
+        scrollPane.setPreferredSize(new Dimension(600, 500));
+        scrollPane.getVerticalScrollBar().setUnitIncrement(16);
+        
+        // Create button panel
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 15, 15));
+        buttonPanel.setBackground(SURFACE_COLOR);
+        
+        JButton refreshButton = createModernButton("🔄 Refresh Analysis", PRIMARY_COLOR);
+        JButton closeButton = createModernButton("✅ Close", new Color(108, 117, 125));
+        
+        refreshButton.addActionListener(e -> {
+            analysisArea.setText("🔄 Refreshing analysis...\n\nPlease wait...");
+            // Generate new analysis in background
+            SwingWorker<String, Void> worker = new SwingWorker<String, Void>() {
+                @Override
+                protected String doInBackground() throws Exception {
+                    return AiAdviceService.getDetailedAnalysis(crypto);
+                }
+                
+                @Override
+                protected void done() {
+                    try {
+                        analysisArea.setText(get());
+                        analysisArea.setCaretPosition(0); // Scroll to top
+                    } catch (Exception ex) {
+                        analysisArea.setText("❌ Error generating analysis: " + ex.getMessage());
+                    }
+                }
+            };
+            worker.execute();
+        });
+        
+        closeButton.addActionListener(e -> dialog.dispose());
+        
+        buttonPanel.add(refreshButton);
+        buttonPanel.add(closeButton);
+        
+        // Add components to dialog
+        dialog.add(titlePanel, BorderLayout.NORTH);
+        dialog.add(scrollPane, BorderLayout.CENTER);
+        dialog.add(buttonPanel, BorderLayout.SOUTH);
+        
+        // Generate analysis in background
+        SwingWorker<String, Void> analysisWorker = new SwingWorker<String, Void>() {
+            @Override
+            protected String doInBackground() throws Exception {
+                return AiAdviceService.getDetailedAnalysis(crypto);
+            }
+            
+            @Override
+            protected void done() {
+                try {
+                    analysisArea.setText(get());
+                    analysisArea.setCaretPosition(0); // Scroll to top
+                } catch (Exception ex) {
+                    analysisArea.setText("❌ Error generating analysis: " + ex.getMessage());
+                }
+            }
+        };
+        analysisWorker.execute();
+        
+        // Configure and show dialog
+        dialog.setSize(650, 700);
+        dialog.setLocationRelativeTo(this);
+        dialog.setResizable(true);
+        dialog.setVisible(true);
     }
     
     // Enhanced custom table cell renderer with decorative styling
@@ -1015,18 +1412,59 @@ public class PortfolioContentPanel extends JPanel {
                         }
                     }
                     setHorizontalAlignment(RIGHT);
-                } else if (column == 11) { // Entry Status column
-                    setForeground(TEXT_PRIMARY);
-                    setFont(new Font("Segoe UI", Font.PLAIN, 16));
-                    setHorizontalAlignment(CENTER);
+                } else if (column == 11) { // AI Advice column
+                    // Create custom panel for AI advice with icon positioning
+                    JPanel aiPanel = new JPanel(new BorderLayout());
+                    aiPanel.setOpaque(true);
                     
-                    // Add background color based on entry opportunity
-                    if (row < cryptoList.size()) {
-                        CryptoData crypto = cryptoList.get(row);
-                        if (crypto.isGoodEntryPoint()) {
-                            setBackground(new Color(76, 175, 80, 30)); // Light green background
+                    // Extract advice text without icon
+                    String fullText = value != null ? value.toString() : "Loading...";
+                    String adviceText = fullText.replace(" ℹ️", "").trim();
+                    
+                    // Create advice label
+                    JLabel adviceLabel = new JLabel(adviceText);
+                    adviceLabel.setFont(new Font("Segoe UI", Font.BOLD, 11));
+                    adviceLabel.setForeground(PRIMARY_COLOR);
+                    adviceLabel.setHorizontalAlignment(SwingConstants.CENTER);
+                    
+                    // Create info icon label
+                    JLabel iconLabel = new JLabel("ℹ️");
+                    iconLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+                    iconLabel.setHorizontalAlignment(SwingConstants.RIGHT);
+                    iconLabel.setVerticalAlignment(SwingConstants.TOP);
+                    iconLabel.setBorder(new EmptyBorder(2, 0, 0, 4));
+                    
+                    // Add components to panel
+                    aiPanel.add(adviceLabel, BorderLayout.CENTER);
+                    aiPanel.add(iconLabel, BorderLayout.EAST);
+                    
+                    // Set background color based on advice type
+                    Color bgColor = new Color(200, 200, 200, 30); // Default light gray
+                    if (!adviceText.equals("Loading...")) {
+                        String advice = adviceText.toLowerCase();
+                        if (advice.contains("buy") || advice.contains("good") || advice.contains("bullish")) {
+                            bgColor = new Color(76, 175, 80, 30); // Light green
+                        } else if (advice.contains("sell") || advice.contains("cut") || advice.contains("bearish")) {
+                            bgColor = new Color(244, 67, 54, 30); // Light red
+                        } else {
+                            bgColor = new Color(255, 193, 7, 30); // Light yellow for hold/wait
                         }
                     }
+                    
+                    aiPanel.setBackground(bgColor);
+                    adviceLabel.setOpaque(false);
+                    iconLabel.setOpaque(false);
+                    
+                    // Apply border
+                    aiPanel.setBorder(new CompoundBorder(
+                        new LineBorder(PRIMARY_COLOR, 1, true),
+                        new EmptyBorder(4, 6, 4, 6)
+                    ));
+                    
+                    // Add tooltip
+                    aiPanel.setToolTipText("Click for detailed AI analysis and recommendations");
+                    
+                    return aiPanel;
                 } else if (column >= 2 && column <= 8) { // Numeric columns
                     setHorizontalAlignment(RIGHT);
                     setForeground(TEXT_PRIMARY);

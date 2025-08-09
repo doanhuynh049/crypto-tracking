@@ -16,6 +16,7 @@ public class CryptoData implements Serializable {
     public double targetPriceLongTerm;
     public double holdings;
     public double avgBuyPrice;
+    public String aiAdvice; // AI-generated three-word advice
     
     // Constructor with all fields including expected entry
     public CryptoData(String id, String name, String symbol, double currentPrice, double expectedPrice, 
@@ -31,6 +32,7 @@ public class CryptoData implements Serializable {
         this.targetPriceLongTerm = targetPriceLongTerm;
         this.holdings = holdings;
         this.avgBuyPrice = avgBuyPrice;
+        this.aiAdvice = "Loading..."; // Default value
     }
     
     // Legacy constructor for backward compatibility
@@ -46,6 +48,7 @@ public class CryptoData implements Serializable {
         this.targetPriceLongTerm = expectedPrice;
         this.holdings = holdings;
         this.avgBuyPrice = avgBuyPrice;
+        this.aiAdvice = "Loading..."; // Default value
     }
     
     // Constructor with target fields but without expected entry
@@ -61,6 +64,7 @@ public class CryptoData implements Serializable {
         this.targetPriceLongTerm = targetPriceLongTerm;
         this.holdings = holdings;
         this.avgBuyPrice = avgBuyPrice;
+        this.aiAdvice = "Loading..."; // Default value
     }
     
     /**
@@ -110,15 +114,17 @@ public class CryptoData implements Serializable {
     }
     
     /**
-     * Get entry status emoji
+     * Get AI-generated three-word advice
      */
-    public String getEntryStatusEmoji() {
-        double opportunity = getEntryOpportunity();
-        if (opportunity > 0.1) return "🔥"; // Great entry (10%+ below expected)
-        else if (opportunity > 0.05) return "💚"; // Good entry (5-10% below expected)
-        else if (opportunity > 0) return "✅"; // Fair entry (near expected)
-        else if (opportunity > -0.05) return "⚠️"; // Slightly above expected
-        else return "🔴"; // Well above expected entry
+    public String getAiAdvice() {
+        return aiAdvice != null ? aiAdvice : "Loading...";
+    }
+    
+    /**
+     * Set AI-generated advice
+     */
+    public void setAiAdvice(String advice) {
+        this.aiAdvice = advice;
     }
     
     @Override
