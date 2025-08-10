@@ -50,6 +50,13 @@ public class PortfolioDataManager {
         cryptoList.add(new CryptoData("dogecoin", "Dogecoin", "DOGE", 0.0, 0.25, 0.22, 0.30, 0.50, 0.0, 0.0));
         cryptoList.add(new CryptoData("polkadot", "Polkadot", "DOT", 0.0, 25.0, 22.5, 30.0, 50.0, 0.0, 0.0));
         cryptoList.add(new CryptoData("chainlink", "Chainlink", "LINK", 0.0, 20.0, 18.0, 25.0, 40.0, 0.0, 0.0));
+        
+        // Set initial AI status to LOADING for all cryptocurrencies
+        for (CryptoData crypto : cryptoList) {
+            crypto.aiStatus = "LOADING";
+            crypto.aiAdvice = "Loading...";
+        }
+        
         savePortfolioData(); // Save initial data
     }
     
@@ -67,6 +74,8 @@ public class PortfolioDataManager {
                     uiBuilder.addCryptoToTable(crypto);
                 }
                 updatePortfolioValue(); // Update portfolio value display
+                // Initialize AI status
+                updateAiStatusProgress();
                 // Auto-fit column widths after loading all data with a delay to ensure proper calculation
                 SwingUtilities.invokeLater(() -> {
                     uiBuilder.autoFitColumnWidths();
@@ -173,6 +182,8 @@ public class PortfolioDataManager {
     public void refreshAiAdvice() {
         if (uiBuilder != null) {
             uiBuilder.getStatusLabel().setText("📊 Portfolio Status: Updating AI advice...");
+            // Initialize AI status label for progress tracking
+            uiBuilder.updateAiStatusLabel(cryptoList.size(), 0, 0, 0, cryptoList.size());
         }
         
         SwingWorker<Void, Void> worker = new SwingWorker<Void, Void>() {
@@ -194,32 +205,121 @@ public class PortfolioDataManager {
     }
 
     /**
-     * Fetch AI advice for all cryptocurrencies asynchronously
+     * Fetch AI advice for all cryptocurrencies sequentially to avoid rate limiting
      */
     private void fetchAiAdvice() {
         try {
-            // Fetch AI advice for each cryptocurrency asynchronously
-            for (CryptoData crypto : cryptoList) {
-                AiAdviceService.getAdviceAsync(crypto)
-                    .thenAccept(advice -> {
-                        crypto.setAiAdvice(advice);
-                        // Update table on EDT
-                        SwingUtilities.invokeLater(() -> {
-                            updateTableData();
-                        });
-                    })
-                    .exceptionally(throwable -> {
-                        System.err.println("Failed to get AI advice for " + crypto.symbol + ": " + throwable.getMessage());
-                        // Set fallback advice
-                        crypto.setAiAdvice("Hold Position");
-                        SwingUtilities.invokeLater(() -> {
-                            updateTableData();
-                        });
-                        return null;
-                    });
-            }
+            // Fetch AI advice sequentially with delays to respect API rate limits
+            fetchAiAdviceSequentially(0);
         } catch (Exception e) {
             System.err.println("Error initiating AI advice fetch: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Fetch AI advice sequentially for each cryptocurrency with delay
+     */
+    private void fetchAiAdviceSequentially(int index) {
+        if (index >= cryptoList.size()) {
+            // All cryptocurrencies processed, update UI
+            SwingUtilities.invokeLater(() -> {
+                updateTableData();
+                if (uiBuilder != null) {
+                    uiBuilder.getStatusLabel().setText("📊 Portfolio Status: AI advice updated");
+                    // Update AI status to show completion
+                    uiBuilder.updateAiStatus(cryptoList);
+                }
+            });
+            return;
+        }
+        
+        CryptoData crypto = cryptoList.get(index);
+        System.out.println("Fetching AI advice for " + crypto.symbol + " (" + (index + 1) + "/" + cryptoList.size() + ")");
+        
+        // Update status to show progress
+        SwingUtilities.invokeLater(() -> {
+            if (uiBuilder != null) {
+                uiBuilder.getStatusLabel().setText("📊 Portfolio Status: Getting AI advice for " + crypto.symbol + "...");
+                // Update AI status label with current progress
+                updateAiStatusProgress();
+            }
+        });
+        
+        AiAdviceService.getAdviceAsync(crypto)
+            .thenAccept(advice -> {
+                System.out.println("Successfully got AI advice for " + crypto.symbol + ": " + advice);
+                
+                // Update table for this specific crypto
+                SwingUtilities.invokeLater(() -> {
+                    updateSingleCryptoInTable(crypto, index);
+                    // Update AI status progress after completion
+                    updateAiStatusProgress();
+                });
+                
+                // Wait a bit before next request to respect rate limits (2 seconds delay)
+                Timer delayTimer = new Timer(2000, e -> {
+                    fetchAiAdviceSequentially(index + 1);
+                });
+                delayTimer.setRepeats(false);
+                delayTimer.start();
+            })
+            .exceptionally(throwable -> {
+                System.err.println("Failed to get AI advice for " + crypto.symbol + ": " + throwable.getMessage());
+                // Set error status
+                crypto.setAiAdviceError();
+                
+                SwingUtilities.invokeLater(() -> {
+                    updateSingleCryptoInTable(crypto, index);
+                    // Update AI status progress after error
+                    updateAiStatusProgress();
+                });
+                
+                // Continue with next crypto even if this one failed (shorter delay for errors)
+                Timer delayTimer = new Timer(1000, e -> {
+                    fetchAiAdviceSequentially(index + 1);
+                });
+                delayTimer.setRepeats(false);
+                delayTimer.start();
+                
+                return null;
+            });
+    }
+    
+    /**
+     * Update AI status progress in real-time
+     */
+    private void updateAiStatusProgress() {
+        if (uiBuilder == null) return;
+        
+        int totalCount = cryptoList.size();
+        int aiSuccessCount = 0;
+        int fallbackCount = 0;
+        int errorCount = 0;
+        int loadingCount = 0;
+        
+        for (CryptoData crypto : cryptoList) {
+            crypto.initializeAiFields();
+            String status = crypto.aiStatus;
+            if ("AI_SUCCESS".equals(status)) {
+                aiSuccessCount++;
+            } else if ("FALLBACK".equals(status)) {
+                fallbackCount++;
+            } else if ("ERROR".equals(status)) {
+                errorCount++;
+            } else {
+                loadingCount++;
+            }
+        }
+        
+        uiBuilder.updateAiStatusLabel(loadingCount, aiSuccessCount, fallbackCount, errorCount, totalCount);
+    }
+    
+    /**
+     * Update a single cryptocurrency in the table without rebuilding entire table
+     */
+    private void updateSingleCryptoInTable(CryptoData crypto, int index) {
+        if (uiBuilder != null && index < uiBuilder.getTableModel().getRowCount()) {
+            uiBuilder.updateTableRow(index, crypto);
         }
     }
     
@@ -264,6 +364,9 @@ public class PortfolioDataManager {
             if (cryptoList.size() <= 10) { // Only auto-fit for smaller datasets to avoid performance issues
                 SwingUtilities.invokeLater(() -> uiBuilder.autoFitColumnWidths());
             }
+            
+            // Update AI status display
+            uiBuilder.updateAiStatus(cryptoList);
         } finally {
             isUpdatingTable = false;
         }
@@ -437,6 +540,10 @@ public class PortfolioDataManager {
             Object obj = ois.readObject();
             if (obj instanceof List<?>) {
                 cryptoList = (List<CryptoData>) obj;
+                // Initialize AI fields for backward compatibility
+                for (CryptoData crypto : cryptoList) {
+                    crypto.initializeAiFields();
+                }
             }
         } catch (IOException | ClassNotFoundException e) {
             System.err.println("Error loading portfolio data: " + e.getMessage());
@@ -490,6 +597,7 @@ public class PortfolioDataManager {
                     
                     CryptoData crypto = new CryptoData(id, name, symbol, 0.0, expectedPrice, expectedEntry, targetPrice3Month, targetPriceLongTerm, holdings, avgBuyPrice);
                     crypto.setAiAdvice(aiAdviceStr != null ? aiAdviceStr : "Loading...");
+                    crypto.initializeAiFields(); // Ensure AI fields are properly initialized
                     cryptoList.add(crypto);
                 }
             }
@@ -535,6 +643,7 @@ public class PortfolioDataManager {
                     
                     CryptoData crypto = new CryptoData(id, name, symbol, 0.0, expectedPrice, expectedEntry, targetPrice3Month, targetPriceLongTerm, holdings, avgBuyPrice);
                     crypto.setAiAdvice("Loading..."); // Set default for old files
+                    crypto.initializeAiFields(); // Ensure AI fields are properly initialized
                     cryptoList.add(crypto);
                 }
             }

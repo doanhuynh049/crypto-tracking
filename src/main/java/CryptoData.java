@@ -17,6 +17,9 @@ public class CryptoData implements Serializable {
     public double holdings;
     public double avgBuyPrice;
     public String aiAdvice; // AI-generated three-word advice
+    public boolean isAiGenerated = false; // Track if advice is from AI or rule-based
+    public String aiStatus = "LOADING"; // LOADING, AI_SUCCESS, FALLBACK, ERROR
+    public long lastAiUpdate = 0; // Timestamp of last AI update
     
     // Constructor with all fields including expected entry
     public CryptoData(String id, String name, String symbol, double currentPrice, double expectedPrice, 
@@ -125,8 +128,81 @@ public class CryptoData implements Serializable {
      */
     public void setAiAdvice(String advice) {
         this.aiAdvice = advice;
+        this.lastAiUpdate = System.currentTimeMillis();
     }
     
+    /**
+     * Set AI advice from AI API with success status
+     */
+    public void setAiAdviceFromAI(String advice) {
+        this.aiAdvice = advice;
+        this.isAiGenerated = true;
+        this.aiStatus = "AI_SUCCESS";
+        this.lastAiUpdate = System.currentTimeMillis();
+    }
+    
+    /**
+     * Set AI advice from fallback with fallback status
+     */
+    public void setAiAdviceFromFallback(String advice) {
+        this.aiAdvice = advice;
+        this.isAiGenerated = false;
+        this.aiStatus = "FALLBACK";
+        this.lastAiUpdate = System.currentTimeMillis();
+    }
+    
+    /**
+     * Set AI advice error status
+     */
+    public void setAiAdviceError() {
+        this.aiAdvice = "Error";
+        this.isAiGenerated = false;
+        this.aiStatus = "ERROR";
+        this.lastAiUpdate = System.currentTimeMillis();
+    }
+    
+    /**
+     * Get AI advice with status indicator
+     */
+    public String getAiAdviceWithStatus() {
+        // Handle null aiStatus for backward compatibility
+        if (aiStatus == null) {
+            aiStatus = "LOADING";
+        }
+        
+        // Handle null aiAdvice
+        if (aiAdvice == null) {
+            aiAdvice = "Loading...";
+        }
+        
+        if (aiStatus.equals("LOADING")) {
+            return "🔄 Loading...";
+        } else if (aiStatus.equals("AI_SUCCESS")) {
+            return "🤖 " + aiAdvice;
+        } else if (aiStatus.equals("FALLBACK")) {
+            return "📊 " + aiAdvice;
+        } else if (aiStatus.equals("ERROR")) {
+            return "❌ " + aiAdvice;
+        }
+        return aiAdvice;
+    }
+
+    /**
+     * Initialize AI status fields for backward compatibility
+     * Called when loading old data that doesn't have these fields
+     */
+    public void initializeAiFields() {
+        if (aiStatus == null) {
+            aiStatus = "LOADING";
+        }
+        if (aiAdvice == null) {
+            aiAdvice = "Loading...";
+        }
+        if (lastAiUpdate == 0) {
+            lastAiUpdate = System.currentTimeMillis();
+        }
+    }
+
     @Override
     public String toString() {
         return String.format("%s (%s) - Current: $%.2f, Holdings: %.4f", 

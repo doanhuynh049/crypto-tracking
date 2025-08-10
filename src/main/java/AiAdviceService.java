@@ -6,16 +6,22 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.Executors;
 import org.json.JSONObject;
 import org.json.JSONArray;
+import okhttp3.*;
 
 /**
  * Service class for getting AI-generated cryptocurrency advice
- * Uses Hugging Face's free inference API
+ * Uses Google Gemini AI API with OkHttp client
  */
 public class AiAdviceService {
-    private static final String API_URL = "https://api-inference.huggingface.co/models/microsoft/DialoGPT-medium";
-    private static final String API_KEY = "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"; // Optional: Add your Hugging Face API key for better rate limits
+    private static final String API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
+    private static final String API_KEY = "AIzaSyBdk8l5xWHr_uQTT0TansUN6ZIpguh6QKM"; // Your Google AI API key
+    private static final boolean USE_AI_API = true; // Enabled to use AI API
     
-    private static final ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(3);
+    private static final ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(1); // Reduced to 1 thread for sequential processing
+    private static final OkHttpClient client = new OkHttpClient.Builder()
+            .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+            .build();
     
     /**
      * Get AI advice for a cryptocurrency asynchronously
@@ -25,10 +31,18 @@ public class AiAdviceService {
     public static CompletableFuture<String> getAdviceAsync(CryptoData crypto) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                return getAdvice(crypto);
+                String advice = getAdvice(crypto);
+                if (USE_AI_API) {
+                    crypto.setAiAdviceFromAI(advice);
+                } else {
+                    crypto.setAiAdviceFromFallback(advice);
+                }
+                return advice;
             } catch (Exception e) {
                 System.err.println("Error getting AI advice for " + crypto.symbol + ": " + e.getMessage());
-                return getSimpleAdvice(crypto); // Fallback to simple rule-based advice
+                String fallbackAdvice = getSimpleAdvice(crypto);
+                crypto.setAiAdviceFromFallback(fallbackAdvice);
+                return fallbackAdvice;
             }
         }, executor);
     }
@@ -39,6 +53,11 @@ public class AiAdviceService {
      * @return Three-word advice string
      */
     public static String getAdvice(CryptoData crypto) {
+        // Use rule-based advice as primary method to avoid API issues
+        if (!USE_AI_API) {
+            return getSimpleAdvice(crypto);
+        }
+        
         try {
             // Create a prompt for the AI
             String prompt = createPrompt(crypto);
@@ -53,7 +72,7 @@ public class AiAdviceService {
             return formatToThreeWords(advice);
             
         } catch (Exception e) {
-            System.err.println("Error getting AI advice: " + e.getMessage());
+            System.err.println("AI API unavailable for " + crypto.symbol + ", using rule-based advice: " + e.getMessage());
             return getSimpleAdvice(crypto);
         }
     }
@@ -65,65 +84,81 @@ public class AiAdviceService {
         double profitLossPercentage = crypto.getProfitLossPercentage() * 100;
         double entryOpportunity = crypto.getEntryOpportunity() * 100;
         
+        // Create a simple prompt for Gemini
         return String.format(
-            "Cryptocurrency %s (%s): Current price $%.2f, Target $%.2f, Holdings %.4f, " +
-            "Profit/Loss %.1f%%, Entry opportunity %.1f%%. " +
-            "Give exactly three-word investment advice:",
-            crypto.name, crypto.symbol, crypto.currentPrice, crypto.expectedPrice, 
+            "You are a cryptocurrency investment advisor. Analyze %s cryptocurrency: " +
+            "Current price is $%.2f, target price is $%.2f, holdings are %.4f coins, " +
+            "current profit/loss is %.1f%%, entry opportunity is %.1f%%. " +
+            "Provide exactly 3 words of investment advice (like 'Buy The Dip' or 'Hold Position'):",
+            crypto.symbol.toUpperCase(), crypto.currentPrice, crypto.expectedPrice, 
             crypto.holdings, profitLossPercentage, entryOpportunity
         );
     }
     
     /**
-     * Make API request to Hugging Face
+     * Make API request to Google Gemini using OkHttp
      */
     private static String makeApiRequest(String prompt) throws IOException {
-        URL url = new URL(API_URL);
-        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+        System.out.println("Making API request to: " + API_URL);
         
-        connection.setRequestMethod("POST");
-        connection.setRequestProperty("Content-Type", "application/json");
-        if (!API_KEY.isEmpty()) {
-            connection.setRequestProperty("Authorization", "Bearer " + API_KEY);
-        }
-        connection.setDoOutput(true);
-        connection.setConnectTimeout(10000);
-        connection.setReadTimeout(15000);
+        // Create request body for Gemini API
+        JSONObject contents = new JSONObject();
+        JSONArray partsArray = new JSONArray();
+        JSONObject textPart = new JSONObject();
+        textPart.put("text", prompt);
+        partsArray.put(textPart);
+        contents.put("parts", partsArray);
         
-        // Create request body
+        JSONArray contentsArray = new JSONArray();
+        contentsArray.put(contents);
+        
         JSONObject requestBody = new JSONObject();
-        requestBody.put("inputs", prompt);
+        requestBody.put("contents", contentsArray);
         
-        JSONObject parameters = new JSONObject();
-        parameters.put("max_length", 50);
-        parameters.put("temperature", 0.7);
-        parameters.put("do_sample", true);
-        requestBody.put("parameters", parameters);
+        JSONObject generationConfig = new JSONObject();
+        generationConfig.put("temperature", 0.7);
+        generationConfig.put("maxOutputTokens", 50);
+        generationConfig.put("topP", 0.9);
+        requestBody.put("generationConfig", generationConfig);
         
-        // Send request
-        try (OutputStream os = connection.getOutputStream()) {
-            byte[] input = requestBody.toString().getBytes("utf-8");
-            os.write(input, 0, input.length);
-        }
+        System.out.println("Request body: " + requestBody.toString());
         
-        // Read response
-        int responseCode = connection.getResponseCode();
-        InputStream inputStream = (responseCode == 200) ? 
-            connection.getInputStream() : connection.getErrorStream();
+        // Create request
+        RequestBody body = RequestBody.create(
+            requestBody.toString(), 
+            MediaType.parse("application/json")
+        );
+        
+        Request request = new Request.Builder()
+            .url(API_URL + "?key=" + API_KEY)
+            .addHeader("Content-Type", "application/json")
+            .addHeader("User-Agent", "CryptoPortfolio/1.0")
+            .post(body)
+            .build();
+        
+        // Execute request
+        try (Response response = client.newCall(request).execute()) {
+            int responseCode = response.code();
+            String responseBody = response.body().string();
             
-        StringBuilder response = new StringBuilder();
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                response.append(line);
+            System.out.println("Response code: " + responseCode);
+            System.out.println("Response body: " + responseBody);
+            
+            if (!response.isSuccessful()) {
+                // Handle specific error codes
+                if (responseCode == 429) {
+                    throw new IOException("Rate limit exceeded. Please try again later.");
+                } else if (responseCode == 401 || responseCode == 403) {
+                    throw new IOException("Invalid API key. Please check your Google AI API key.");
+                } else if (responseCode == 400) {
+                    throw new IOException("Bad request. Please check the request format.");
+                } else {
+                    throw new IOException("API request failed with code " + responseCode + ": " + responseBody);
+                }
             }
+            
+            return responseBody;
         }
-        
-        if (responseCode != 200) {
-            throw new IOException("API request failed with code " + responseCode + ": " + response.toString());
-        }
-        
-        return response.toString();
     }
     
     /**
@@ -131,23 +166,115 @@ public class AiAdviceService {
      */
     private static String parseResponse(String response) {
         try {
-            JSONArray jsonArray = new JSONArray(response);
-            if (jsonArray.length() > 0) {
-                JSONObject firstResult = jsonArray.getJSONObject(0);
-                if (firstResult.has("generated_text")) {
-                    String fullText = firstResult.getString("generated_text");
-                    // Extract advice after the prompt
-                    String[] parts = fullText.split("Give exactly three-word investment advice:");
-                    if (parts.length > 1) {
-                        return parts[1].trim();
+            System.out.println("Parsing response: " + response);
+            
+            JSONObject jsonResponse = new JSONObject(response);
+            if (jsonResponse.has("candidates")) {
+                JSONArray candidates = jsonResponse.getJSONArray("candidates");
+                if (candidates.length() > 0) {
+                    JSONObject firstCandidate = candidates.getJSONObject(0);
+                    if (firstCandidate.has("content")) {
+                        JSONObject content = firstCandidate.getJSONObject("content");
+                        if (content.has("parts")) {
+                            JSONArray parts = content.getJSONArray("parts");
+                            if (parts.length() > 0) {
+                                JSONObject firstPart = parts.getJSONObject(0);
+                                if (firstPart.has("text")) {
+                                    String generatedText = firstPart.getString("text");
+                                    System.out.println("Generated text: " + generatedText);
+                                    
+                                    // Clean up the response text
+                                    String advice = cleanAdviceText(generatedText);
+                                    if (advice != null && !advice.trim().isEmpty()) {
+                                        return advice;
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
             throw new RuntimeException("Invalid response format");
         } catch (Exception e) {
+            System.err.println("Error parsing response: " + e.getMessage());
             // If JSON parsing fails, try to extract meaningful words from response
             return extractKeyWords(response);
         }
+    }
+    
+    /**
+     * Clean and extract advice from the generated text
+     */
+    private static String cleanAdviceText(String fullText) {
+        System.out.println("Cleaning text: " + fullText);
+        
+        // Remove markdown formatting and common AI prefixes/suffixes
+        String cleaned = fullText
+            .replaceAll("\\*\\*", "") // Remove markdown bold formatting
+            .replaceAll("\\*", "")    // Remove markdown italic formatting
+            .replaceAll("(?i)(here are|here's|i recommend|my advice is|i suggest|based on)", "")
+            .replaceAll("(?i)(analysis|the|a|an)", "")
+            .replaceAll("[\"'`\\n\\r]", "") // Remove quotes and newlines
+            .replaceAll("\\s+", " ")
+            .trim();
+        
+        System.out.println("After cleaning: " + cleaned);
+        
+        // Split into words and keep investment-related terms
+        String[] words = cleaned.split("\\s+");
+        StringBuilder result = new StringBuilder();
+        int wordCount = 0;
+        
+        for (String word : words) {
+            if (wordCount >= 3) break;
+            
+            // Clean the word but preserve more characters
+            String cleanWord = word.replaceAll("[^a-zA-Z]", "").toLowerCase();
+            
+            if (cleanWord.length() >= 2 && (isInvestmentWord(cleanWord) || isActionWord(cleanWord) || isUsefulWord(cleanWord))) {
+                if (wordCount > 0) result.append(" ");
+                result.append(capitalizeFirst(cleanWord));
+                wordCount++;
+            }
+        }
+        
+        System.out.println("Final result: " + result.toString() + " (word count: " + wordCount + ")");
+        return wordCount >= 2 ? result.toString() : null;
+    }
+    
+    /**
+     * Check if a word is an action word
+     */
+    private static boolean isActionWord(String word) {
+        String[] actionWords = {
+            "buy", "sell", "hold", "wait", "watch", "avoid", "take", "cut", "add",
+            "reduce", "increase", "accumulate", "distribute", "enter", "exit"
+        };
+        
+        for (String action : actionWords) {
+            if (word.equals(action)) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    /**
+     * Check if a word is useful for investment advice
+     */
+    private static boolean isUsefulWord(String word) {
+        String[] usefulWords = {
+            "now", "today", "soon", "exposure", "position", "profits", "gains", 
+            "losses", "more", "less", "some", "all", "half", "partial", "current",
+            "holdings", "portfolio", "stake", "investment", "allocation"
+        };
+        
+        for (String useful : usefulWords) {
+            if (word.equals(useful)) {
+                return true;
+            }
+        }
+        return false;
     }
     
     /**
@@ -226,26 +353,55 @@ public class AiAdviceService {
     }
     
     /**
-     * Fallback rule-based advice when AI API fails
+     * Enhanced rule-based advice when AI API fails
      */
     private static String getSimpleAdvice(CryptoData crypto) {
         double profitLoss = crypto.getProfitLossPercentage();
         double entryOpportunity = crypto.getEntryOpportunity();
+        double currentPrice = crypto.currentPrice;
+        double avgBuyPrice = crypto.avgBuyPrice;
+        double holdings = crypto.holdings;
         
-        if (profitLoss > 0.20) return "Take Profit";
-        else if (profitLoss < -0.20) return "Cut Loss";
-        else if (entryOpportunity > 0.1) return "Buy The Dip";
-        else if (entryOpportunity < -0.1) return "Wait For Dip";
-        else if (crypto.currentPrice > crypto.targetPriceLongTerm) return "Sell High";
-        else if (crypto.currentPrice < crypto.expectedEntry) return "Good Entry";
+        // Strong profit scenarios
+        if (profitLoss > 0.30) return "Take Profits";
+        else if (profitLoss > 0.20) return "Secure Gains";
+        else if (profitLoss > 0.15) return "Partial Sell";
+        
+        // Strong loss scenarios
+        else if (profitLoss < -0.30) return "Cut Losses";
+        else if (profitLoss < -0.20) return "Review Position";
+        else if (profitLoss < -0.15) return "Stop Loss";
+        
+        // Entry opportunity scenarios
+        else if (entryOpportunity > 0.15) return "Buy Opportunity";
+        else if (entryOpportunity > 0.10) return "Dollar Average";
+        else if (entryOpportunity > 0.05) return "Good Entry";
+        
+        // Overvalued scenarios
+        else if (currentPrice > crypto.targetPriceLongTerm * 1.1) return "Overvalued Now";
+        else if (currentPrice > crypto.targetPrice3Month * 1.05) return "Near Target";
+        
+        // Undervalued scenarios
+        else if (currentPrice < crypto.expectedEntry * 0.95) return "Great Price";
+        else if (currentPrice < crypto.expectedEntry) return "Below Entry";
+        
+        // Holdings-based advice
+        else if (holdings == 0 && currentPrice < crypto.expectedEntry) return "Start Position";
+        else if (holdings == 0) return "Wait Entry";
+        else if (holdings > 0 && profitLoss > 0.05) return "Hold Gains";
+        else if (holdings > 0 && profitLoss < -0.05) return "Hold Steady";
+        
+        // Default advice
         else return "Hold Position";
     }
     
     /**
-     * Shutdown the executor service
+     * Shutdown the executor service and HTTP client
      */
     public static void shutdown() {
         executor.shutdown();
+        client.dispatcher().executorService().shutdown();
+        client.connectionPool().evictAll();
     }
     
     /**

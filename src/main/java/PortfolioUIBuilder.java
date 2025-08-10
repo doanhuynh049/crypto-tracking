@@ -26,6 +26,7 @@ public class PortfolioUIBuilder {
     private JButton addCryptoButton;
     private JLabel statusLabel;
     private JLabel portfolioValueLabel;
+    private JLabel aiStatusLabel; // New AI status label
     private DecimalFormat priceFormat = new DecimalFormat("$#,##0.00");
     private DecimalFormat percentFormat = new DecimalFormat("+#0.00%;-#0.00%");
     private DecimalFormat amountFormat = new DecimalFormat("#,##0.########");
@@ -65,8 +66,14 @@ public class PortfolioUIBuilder {
         statusLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
         statusLabel.setForeground(TEXT_PRIMARY);
         
+        // AI Status label
+        aiStatusLabel = new JLabel("🔄 AI: Loading...");
+        aiStatusLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        aiStatusLabel.setForeground(new Color(255, 193, 7));
+        
         statusPanel.add(portfolioValueLabel);
         statusPanel.add(statusLabel);
+        statusPanel.add(aiStatusLabel);
         
         return statusPanel;
     }
@@ -98,10 +105,21 @@ public class PortfolioUIBuilder {
                 int col = e.getColumn();
                 
                 if (row >= 0 && row < dataManager.getCryptoList().size() && col >= 0) {
+                    // Only process editable columns
+                    if (col != 2 && col != 3 && col != 5 && col != 6 && col != 7) {
+                        return;
+                    }
+                    
                     try {
                         String valueStr = tableModel.getValueAt(row, col).toString();
                         // Remove currency formatting if present
-                        valueStr = valueStr.replace("$", "").replace(",", "");
+                        valueStr = valueStr.replace("$", "").replace(",", "").trim();
+                        
+                        // Skip if empty
+                        if (valueStr.isEmpty()) {
+                            return;
+                        }
+                        
                         double newValue = Double.parseDouble(valueStr);
                         
                         CryptoData crypto = dataManager.getCryptoList().get(row);
@@ -122,31 +140,22 @@ public class PortfolioUIBuilder {
                             case 7: // Target Long
                                 crypto.targetPriceLongTerm = newValue;
                                 break;
-                            default:
-                                return; // Don't process other columns
                         }
                         
                         dataManager.savePortfolioData();
                         
-                        // Update the table display with proper formatting
-                        dataManager.setUpdatingTable(true);
-                        try {
-                            switch (col) {
-                                case 2:
-                                    tableModel.setValueAt(amountFormat.format(newValue), row, col);
-                                    break;
-                                case 3:
-                                case 5:
-                                case 6:
-                                case 7:
-                                    tableModel.setValueAt(priceFormat.format(newValue), row, col);
-                                    break;
+                        // Schedule a delayed update to avoid recursive calls
+                        SwingUtilities.invokeLater(() -> {
+                            dataManager.setUpdatingTable(true);
+                            try {
+                                // Update only calculated columns and portfolio value
+                                dataManager.updatePortfolioValue();
+                                // Refresh the entire table to update calculated values
+                                dataManager.updateTableData();
+                            } finally {
+                                dataManager.setUpdatingTable(false);
                             }
-                            dataManager.updateTableData();
-                            dataManager.updatePortfolioValue();
-                        } finally {
-                            dataManager.setUpdatingTable(false);
-                        }
+                        });
                         
                     } catch (NumberFormatException ex) {
                         // Revert to original value if invalid
@@ -173,7 +182,9 @@ public class PortfolioUIBuilder {
                         } finally {
                             dataManager.setUpdatingTable(false);
                         }
-                        JOptionPane.showMessageDialog(cryptoTable, "Invalid format! Please enter a valid number.");
+                        SwingUtilities.invokeLater(() -> {
+                            JOptionPane.showMessageDialog(cryptoTable, "Invalid format! Please enter a valid number.");
+                        });
                     }
                 }
             }
@@ -212,7 +223,7 @@ public class PortfolioUIBuilder {
         // Set preferred minimum widths for better display
         cryptoTable.getColumnModel().getColumn(0).setMinWidth(50);   // Code
         cryptoTable.getColumnModel().getColumn(1).setMinWidth(120);  // Name
-        cryptoTable.getColumnModel().getColumn(2).setMinWidth(85);   // Holdings
+        cryptoTable.getColumnModel().getColumn(2).setMinWidth(65);   // Holdings (reduced)
         cryptoTable.getColumnModel().getColumn(3).setMinWidth(90);   // Avg Cost
         cryptoTable.getColumnModel().getColumn(4).setMinWidth(90);   // Current
         cryptoTable.getColumnModel().getColumn(5).setMinWidth(85);   // Entry Target
@@ -221,7 +232,7 @@ public class PortfolioUIBuilder {
         cryptoTable.getColumnModel().getColumn(8).setMinWidth(100);  // Total Value
         cryptoTable.getColumnModel().getColumn(9).setMinWidth(90);   // P&L
         cryptoTable.getColumnModel().getColumn(10).setMinWidth(85);  // % Change
-        cryptoTable.getColumnModel().getColumn(11).setMinWidth(80);  // AI Advice
+        cryptoTable.getColumnModel().getColumn(11).setMinWidth(120); // AI Advice (increased)
         
         // Set preferred widths based on content
         autoFitColumnWidths();
@@ -352,7 +363,7 @@ public class PortfolioUIBuilder {
         switch (column) {
             case 0: return 50;   // Code
             case 1: return 120;  // Name
-            case 2: return 85;   // Holdings
+            case 2: return 65;   // Holdings (reduced)
             case 3: return 90;   // Avg Cost
             case 4: return 90;   // Current
             case 5: return 85;   // Entry Target
@@ -361,7 +372,7 @@ public class PortfolioUIBuilder {
             case 8: return 100;  // Total Value
             case 9: return 90;   // P&L
             case 10: return 85;  // % Change
-            case 11: return 80;  // AI Advice
+            case 11: return 120; // AI Advice (increased)
             default: return 80;
         }
     }
@@ -373,7 +384,7 @@ public class PortfolioUIBuilder {
         switch (column) {
             case 0: return 80;   // Code
             case 1: return 200;  // Name
-            case 2: return 120;  // Holdings
+            case 2: return 100;  // Holdings (reduced max width)
             case 3: return 120;  // Avg Cost
             case 4: return 120;  // Current
             case 5: return 120;  // Entry Target
@@ -382,7 +393,7 @@ public class PortfolioUIBuilder {
             case 8: return 150;  // Total Value
             case 9: return 130;  // P&L
             case 10: return 110; // % Change
-            case 11: return 120; // AI Advice
+            case 11: return 160; // AI Advice (increased max width)
             default: return 150;
         }
     }
@@ -852,7 +863,7 @@ public class PortfolioUIBuilder {
             priceFormat.format(crypto.getTotalValue()), // Total Value
             priceFormat.format(crypto.getProfitLoss()), // Profit/Loss
             percentFormat.format(crypto.getProfitLossPercentage()), // % Change
-            crypto.getAiAdvice() + " ℹ️"                 // AI Advice with info icon
+            crypto.getAiAdviceWithStatus() + " ℹ️"                 // AI Advice with status icon
         };
         tableModel.addRow(rowData);
         
@@ -881,7 +892,7 @@ public class PortfolioUIBuilder {
                 priceFormat.format(crypto.getTotalValue()), // Total Value
                 priceFormat.format(crypto.getProfitLoss()), // Profit/Loss
                 percentFormat.format(crypto.getProfitLossPercentage()), // % Change
-                crypto.getAiAdvice() + " ℹ️"                 // AI Advice with info icon
+                crypto.getAiAdviceWithStatus() + " ℹ️"                 // AI Advice with status icon
             };
             tableModel.addRow(rowData);
         }
@@ -902,14 +913,73 @@ public class PortfolioUIBuilder {
         tableModel.setValueAt(priceFormat.format(crypto.getTotalValue()), i, 8);
         tableModel.setValueAt(priceFormat.format(crypto.getProfitLoss()), i, 9);
         tableModel.setValueAt(percentFormat.format(crypto.getProfitLossPercentage()), i, 10);
-        tableModel.setValueAt(crypto.getAiAdvice() + " ℹ️", i, 11);
+        tableModel.setValueAt(crypto.getAiAdviceWithStatus() + " ℹ️", i, 11);
     }
     
+    /**
+     * Update AI status display based on the crypto list
+     */
+    public void updateAiStatus(List<CryptoData> cryptoList) {
+        if (cryptoList == null || cryptoList.isEmpty()) {
+            return;
+        }
+        
+        int totalCount = cryptoList.size();
+        int aiSuccessCount = 0;
+        int fallbackCount = 0;
+        int errorCount = 0;
+        int loadingCount = 0;
+        
+        for (CryptoData crypto : cryptoList) {
+            // Ensure AI fields are initialized
+            crypto.initializeAiFields();
+            
+            String status = crypto.aiStatus;
+            if ("AI_SUCCESS".equals(status)) {
+                aiSuccessCount++;
+            } else if ("FALLBACK".equals(status)) {
+                fallbackCount++;
+            } else if ("ERROR".equals(status)) {
+                errorCount++;
+            } else {
+                loadingCount++;
+            }
+        }
+        
+        // Update AI status label with progress information
+        updateAiStatusLabel(loadingCount, aiSuccessCount, fallbackCount, errorCount, totalCount);
+    }
+    
+    /**
+     * Update AI status label with current progress
+     */
+    public void updateAiStatusLabel(int loadingCount, int aiSuccessCount, int fallbackCount, int errorCount, int totalCount) {
+        if (aiStatusLabel == null) return;
+        
+        int completedCount = aiSuccessCount + fallbackCount + errorCount;
+        
+        if (loadingCount > 0) {
+            // Still loading - show progress
+            aiStatusLabel.setText(String.format("🔄 AI: Loading... (%d/%d completed)", completedCount, totalCount));
+            aiStatusLabel.setForeground(new Color(255, 193, 7)); // Orange/yellow for loading
+        } else {
+            // All completed - show final status
+            aiStatusLabel.setText(String.format("✅ AI: Completed (%d AI, %d fallback, %d errors)", 
+                                               aiSuccessCount, fallbackCount, errorCount));
+            if (errorCount > 0) {
+                aiStatusLabel.setForeground(new Color(255, 87, 34)); // Orange for partial errors
+            } else {
+                aiStatusLabel.setForeground(new Color(76, 175, 80)); // Green for success
+            }
+        }
+    }
+
     // Getters for UI components
     public JTable getCryptoTable() { return cryptoTable; }
     public DefaultTableModel getTableModel() { return tableModel; }
     public JButton getRefreshButton() { return refreshButton; }
     public JLabel getStatusLabel() { return statusLabel; }
+    public JLabel getAiStatusLabel() { return aiStatusLabel; }
     
     // Enhanced custom table cell renderer with decorative styling
     private class EnhancedPortfolioTableCellRenderer extends DefaultTableCellRenderer {
@@ -984,9 +1054,29 @@ public class PortfolioUIBuilder {
                     aiPanel.add(adviceLabel, BorderLayout.CENTER);
                     aiPanel.add(iconLabel, BorderLayout.EAST);
                     
-                    // Set background color based on advice type
+                    // Set background color and border based on AI status
                     Color bgColor = new Color(200, 200, 200, 30); // Default light gray
-                    if (!adviceText.equals("Loading...")) {
+                    Color borderColor = PRIMARY_COLOR;
+                    
+                    // Determine colors based on AI status indicators
+                    if (adviceText.startsWith("🔄")) { // Loading
+                        bgColor = new Color(255, 193, 7, 30); // Yellow for loading
+                        borderColor = new Color(255, 193, 7);
+                        adviceLabel.setForeground(new Color(102, 77, 3));
+                    } else if (adviceText.startsWith("🤖")) { // AI Generated
+                        bgColor = new Color(76, 175, 80, 30); // Green for AI success
+                        borderColor = new Color(76, 175, 80);
+                        adviceLabel.setForeground(new Color(27, 94, 32));
+                    } else if (adviceText.startsWith("📊")) { // Rule-based fallback
+                        bgColor = new Color(33, 150, 243, 30); // Blue for rule-based
+                        borderColor = new Color(33, 150, 243);
+                        adviceLabel.setForeground(new Color(13, 71, 161));
+                    } else if (adviceText.startsWith("❌")) { // Error
+                        bgColor = new Color(244, 67, 54, 30); // Red for error
+                        borderColor = new Color(244, 67, 54);
+                        adviceLabel.setForeground(new Color(183, 28, 28));
+                    } else {
+                        // Fallback: analyze advice content for color coding
                         String advice = adviceText.toLowerCase();
                         if (advice.contains("buy") || advice.contains("good") || advice.contains("bullish")) {
                             bgColor = new Color(76, 175, 80, 30); // Light green
@@ -1001,14 +1091,24 @@ public class PortfolioUIBuilder {
                     adviceLabel.setOpaque(false);
                     iconLabel.setOpaque(false);
                     
-                    // Apply border
+                    // Apply border with appropriate color
                     aiPanel.setBorder(new CompoundBorder(
-                        new LineBorder(PRIMARY_COLOR, 1, true),
+                        new LineBorder(borderColor, 1, true),
                         new EmptyBorder(4, 6, 4, 6)
                     ));
                     
-                    // Add tooltip
-                    aiPanel.setToolTipText("Click for detailed AI analysis and recommendations");
+                    // Add enhanced tooltip with status information
+                    String tooltipText = "Click for detailed AI analysis and recommendations";
+                    if (adviceText.startsWith("🔄")) {
+                        tooltipText = "AI advice is loading... " + tooltipText;
+                    } else if (adviceText.startsWith("🤖")) {
+                        tooltipText = "AI-generated advice - " + tooltipText;
+                    } else if (adviceText.startsWith("📊")) {
+                        tooltipText = "Rule-based advice (AI unavailable) - " + tooltipText;
+                    } else if (adviceText.startsWith("❌")) {
+                        tooltipText = "Error getting AI advice - " + tooltipText;
+                    }
+                    aiPanel.setToolTipText(tooltipText);
                     
                     return aiPanel;
                 } else if (column >= 2 && column <= 8) { // Numeric columns
