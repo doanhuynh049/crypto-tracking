@@ -1,0 +1,1047 @@
+import javax.swing.*;
+import javax.swing.table.DefaultTableModel;
+import javax.swing.table.DefaultTableCellRenderer;
+import javax.swing.table.JTableHeader;
+import javax.swing.border.EmptyBorder;
+import javax.swing.border.LineBorder;
+import javax.swing.border.CompoundBorder;
+import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.awt.event.FocusAdapter;
+import java.awt.event.FocusEvent;
+import java.text.DecimalFormat;
+import java.util.List;
+
+/**
+ * UI Builder class responsible for creating and managing all UI components
+ * for the cryptocurrency portfolio interface.
+ */
+public class PortfolioUIBuilder {
+    
+    // UI Components
+    private DefaultTableModel tableModel;
+    private JTable cryptoTable;
+    private JButton refreshButton;
+    private JButton addCryptoButton;
+    private JLabel statusLabel;
+    private JLabel portfolioValueLabel;
+    private DecimalFormat priceFormat = new DecimalFormat("$#,##0.00");
+    private DecimalFormat percentFormat = new DecimalFormat("+#0.00%;-#0.00%");
+    private DecimalFormat amountFormat = new DecimalFormat("#,##0.########");
+    
+    // Reference to data manager
+    private PortfolioDataManager dataManager;
+    
+    // Modern color scheme
+    private static final Color PRIMARY_COLOR = new Color(25, 118, 210);
+    private static final Color SUCCESS_COLOR = new Color(76, 175, 80);
+    private static final Color DANGER_COLOR = new Color(244, 67, 54);
+    private static final Color SURFACE_COLOR = new Color(255, 255, 255);
+    private static final Color BACKGROUND_COLOR = new Color(248, 249, 250);
+    private static final Color TEXT_PRIMARY = new Color(33, 33, 33);
+    private static final Color TEXT_SECONDARY = new Color(117, 117, 117);
+    private static final Color DIVIDER_COLOR = new Color(224, 224, 224);
+    
+    public PortfolioUIBuilder(PortfolioDataManager dataManager) {
+        this.dataManager = dataManager;
+    }
+    
+    /**
+     * Create the main status panel with portfolio information
+     */
+    public JPanel createStatusPanel() {
+        JPanel statusPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 20, 15));
+        statusPanel.setBackground(BACKGROUND_COLOR);
+        statusPanel.setBorder(new EmptyBorder(10, 0, 10, 0));
+        
+        // Portfolio value label
+        portfolioValueLabel = new JLabel("💰 Total Value: $0.00");
+        portfolioValueLabel.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        portfolioValueLabel.setForeground(PRIMARY_COLOR);
+        
+        // Status label
+        statusLabel = new JLabel("📊 Portfolio Status: Ready");
+        statusLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        statusLabel.setForeground(TEXT_PRIMARY);
+        
+        statusPanel.add(portfolioValueLabel);
+        statusPanel.add(statusLabel);
+        
+        return statusPanel;
+    }
+    
+    /**
+     * Create the main table panel with cryptocurrency data
+     */
+    public JPanel createTablePanel() {
+        JPanel tablePanel = new JPanel(new BorderLayout());
+        tablePanel.setBackground(BACKGROUND_COLOR);
+        
+        // Create table model
+        String[] columnNames = {"Code", "Name", "Holdings", "Avg Cost", "Current", "Entry Target", "3M Target", "Long Target", "Total Value", "P&L", "% Change", "AI Advice"};
+        tableModel = new DefaultTableModel(columnNames, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return column == 2 || column == 3 || column == 5 || column == 6 || column == 7; // Holdings, Average Cost, Entry Target, Target 3M, Target Long
+            }
+        };
+        
+        // Create table
+        cryptoTable = new JTable(tableModel);
+        setupTable();
+        
+        // Add table model listener to handle direct editing of editable columns
+        tableModel.addTableModelListener(e -> {
+            if (e.getType() == javax.swing.event.TableModelEvent.UPDATE && !dataManager.isUpdatingTable()) {
+                int row = e.getFirstRow();
+                int col = e.getColumn();
+                
+                if (row >= 0 && row < dataManager.getCryptoList().size() && col >= 0) {
+                    try {
+                        String valueStr = tableModel.getValueAt(row, col).toString();
+                        // Remove currency formatting if present
+                        valueStr = valueStr.replace("$", "").replace(",", "");
+                        double newValue = Double.parseDouble(valueStr);
+                        
+                        CryptoData crypto = dataManager.getCryptoList().get(row);
+                        
+                        switch (col) {
+                            case 2: // Holding Amount
+                                crypto.holdings = newValue;
+                                break;
+                            case 3: // Average Cost
+                                crypto.avgBuyPrice = newValue;
+                                break;
+                            case 5: // Entry Target
+                                crypto.expectedEntry = newValue;
+                                break;
+                            case 6: // Target 3M
+                                crypto.targetPrice3Month = newValue;
+                                break;
+                            case 7: // Target Long
+                                crypto.targetPriceLongTerm = newValue;
+                                break;
+                            default:
+                                return; // Don't process other columns
+                        }
+                        
+                        dataManager.savePortfolioData();
+                        
+                        // Update the table display with proper formatting
+                        dataManager.setUpdatingTable(true);
+                        try {
+                            switch (col) {
+                                case 2:
+                                    tableModel.setValueAt(amountFormat.format(newValue), row, col);
+                                    break;
+                                case 3:
+                                case 5:
+                                case 6:
+                                case 7:
+                                    tableModel.setValueAt(priceFormat.format(newValue), row, col);
+                                    break;
+                            }
+                            dataManager.updateTableData();
+                            dataManager.updatePortfolioValue();
+                        } finally {
+                            dataManager.setUpdatingTable(false);
+                        }
+                        
+                    } catch (NumberFormatException ex) {
+                        // Revert to original value if invalid
+                        dataManager.setUpdatingTable(true);
+                        try {
+                            CryptoData crypto = dataManager.getCryptoList().get(row);
+                            switch (col) {
+                                case 2:
+                                    tableModel.setValueAt(amountFormat.format(crypto.holdings), row, col);
+                                    break;
+                                case 3:
+                                    tableModel.setValueAt(priceFormat.format(crypto.avgBuyPrice), row, col);
+                                    break;
+                                case 5:
+                                    tableModel.setValueAt(priceFormat.format(crypto.expectedEntry), row, col);
+                                    break;
+                                case 6:
+                                    tableModel.setValueAt(priceFormat.format(crypto.targetPrice3Month), row, col);
+                                    break;
+                                case 7:
+                                    tableModel.setValueAt(priceFormat.format(crypto.targetPriceLongTerm), row, col);
+                                    break;
+                            }
+                        } finally {
+                            dataManager.setUpdatingTable(false);
+                        }
+                        JOptionPane.showMessageDialog(cryptoTable, "Invalid format! Please enter a valid number.");
+                    }
+                }
+            }
+        });
+        
+        // Create scroll pane
+        JScrollPane scrollPane = new JScrollPane(cryptoTable);
+        scrollPane.setBorder(new LineBorder(DIVIDER_COLOR, 1));
+        scrollPane.setBackground(SURFACE_COLOR);
+        
+        tablePanel.add(scrollPane, BorderLayout.CENTER);
+        return tablePanel;
+    }
+    
+    /**
+     * Setup table appearance and behavior
+     */
+    private void setupTable() {
+        cryptoTable.setRowHeight(45); // Increased row height for better appearance
+        cryptoTable.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        cryptoTable.setBackground(SURFACE_COLOR);
+        cryptoTable.setForeground(TEXT_PRIMARY);
+        cryptoTable.setSelectionBackground(new Color(PRIMARY_COLOR.getRed(), PRIMARY_COLOR.getGreen(), PRIMARY_COLOR.getBlue(), 50));
+        cryptoTable.setSelectionForeground(TEXT_PRIMARY);
+        cryptoTable.setGridColor(new Color(240, 240, 240)); // Lighter grid lines
+        cryptoTable.setShowGrid(true);
+        cryptoTable.setIntercellSpacing(new Dimension(1, 1));
+        
+        // Enhanced alternating row colors
+        cryptoTable.setShowHorizontalLines(true);
+        cryptoTable.setShowVerticalLines(true);
+        
+        // Set minimum column widths and enable auto-resize
+        cryptoTable.setAutoResizeMode(JTable.AUTO_RESIZE_ALL_COLUMNS);
+        
+        // Set preferred minimum widths for better display
+        cryptoTable.getColumnModel().getColumn(0).setMinWidth(50);   // Code
+        cryptoTable.getColumnModel().getColumn(1).setMinWidth(120);  // Name
+        cryptoTable.getColumnModel().getColumn(2).setMinWidth(85);   // Holdings
+        cryptoTable.getColumnModel().getColumn(3).setMinWidth(90);   // Avg Cost
+        cryptoTable.getColumnModel().getColumn(4).setMinWidth(90);   // Current
+        cryptoTable.getColumnModel().getColumn(5).setMinWidth(85);   // Entry Target
+        cryptoTable.getColumnModel().getColumn(6).setMinWidth(80);   // 3M Target
+        cryptoTable.getColumnModel().getColumn(7).setMinWidth(80);   // Long Target
+        cryptoTable.getColumnModel().getColumn(8).setMinWidth(100);  // Total Value
+        cryptoTable.getColumnModel().getColumn(9).setMinWidth(90);   // P&L
+        cryptoTable.getColumnModel().getColumn(10).setMinWidth(85);  // % Change
+        cryptoTable.getColumnModel().getColumn(11).setMinWidth(80);  // AI Advice
+        
+        // Set preferred widths based on content
+        autoFitColumnWidths();
+        
+        // Enhanced header styling
+        JTableHeader header = cryptoTable.getTableHeader();
+        header.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        header.setBackground(new Color(245, 245, 247)); // Slightly different background
+        header.setForeground(TEXT_PRIMARY);
+        header.setBorder(new CompoundBorder(
+            new LineBorder(new Color(220, 220, 220), 1),
+            new EmptyBorder(12, 8, 12, 8)
+        ));
+        header.setPreferredSize(new Dimension(header.getPreferredSize().width, 45));
+        
+        // Custom cell renderer with enhanced styling
+        cryptoTable.setDefaultRenderer(Object.class, new EnhancedPortfolioTableCellRenderer());
+        
+        // Add mouse listener for AI advice column clicks
+        cryptoTable.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                int column = cryptoTable.columnAtPoint(e.getPoint());
+                int row = cryptoTable.rowAtPoint(e.getPoint());
+                
+                if (column == 11 && row >= 0) { // AI Advice column
+                    List<CryptoData> cryptoList = dataManager.getCryptoList();
+                    if (row < cryptoList.size()) {
+                        CryptoData crypto = cryptoList.get(row);
+                        showAiAnalysisDialog(crypto);
+                    }
+                }
+            }
+        });
+    }
+    
+    /**
+     * Setup click-to-deselect functionality for the table
+     */
+    public void setupClickToDeselect() {
+        MouseAdapter deselectListener = new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                // Check if click was outside table bounds or on empty area
+                if (SwingUtilities.isDescendingFrom(e.getComponent(), cryptoTable)) {
+                    Point point = SwingUtilities.convertPoint(e.getComponent(), e.getPoint(), cryptoTable);
+                    int row = cryptoTable.rowAtPoint(point);
+                    if (row == -1) {
+                        cryptoTable.clearSelection();
+                    }
+                } else {
+                    cryptoTable.clearSelection();
+                }
+            }
+        };
+        
+        // Add special handler for the table's scroll pane to handle clicks in empty areas
+        Component scrollPane = cryptoTable.getParent().getParent(); // JScrollPane
+        if (scrollPane instanceof JScrollPane) {
+            scrollPane.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mousePressed(MouseEvent e) {
+                    Point point = SwingUtilities.convertPoint(e.getComponent(), e.getPoint(), cryptoTable);
+                    int row = cryptoTable.rowAtPoint(point);
+                    if (row == -1) {
+                        cryptoTable.clearSelection();
+                    }
+                }
+            });
+        }
+        
+        // Add the listener to the main panel and its components
+        addDeselectListenerToComponents(cryptoTable.getParent().getParent().getParent(), deselectListener);
+    }
+    
+    /**
+     * Recursively add deselect listener to all components except the table
+     */
+    private void addDeselectListenerToComponents(Container container, MouseAdapter listener) {
+        for (Component component : container.getComponents()) {
+            if (component != cryptoTable && component != cryptoTable.getParent() && component != cryptoTable.getParent().getParent()) {
+                component.addMouseListener(listener);
+                if (component instanceof Container) {
+                    addDeselectListenerToComponents((Container) component, listener);
+                }
+            }
+        }
+    }
+    
+    /**
+     * Auto-fit column widths based on content with improved data length calculation
+     */
+    public void autoFitColumnWidths() {
+        FontMetrics fm = cryptoTable.getFontMetrics(cryptoTable.getFont());
+        FontMetrics headerFm = cryptoTable.getTableHeader().getFontMetrics(cryptoTable.getTableHeader().getFont());
+        
+        for (int column = 0; column < cryptoTable.getColumnCount(); column++) {
+            // Get header width
+            String headerText = cryptoTable.getColumnModel().getColumn(column).getHeaderValue().toString();
+            int headerWidth = headerFm.stringWidth(headerText) + 30; // Add padding
+            int maxWidth = headerWidth;
+            
+            // Check data widths using string length and font metrics
+            for (int row = 0; row < cryptoTable.getRowCount(); row++) {
+                Object value = cryptoTable.getValueAt(row, column);
+                if (value != null) {
+                    String cellText = value.toString();
+                    int cellWidth = fm.stringWidth(cellText) + 25; // Add padding
+                    maxWidth = Math.max(maxWidth, cellWidth);
+                }
+            }
+            
+            // Set minimum and maximum width constraints
+            int minWidth = getColumnMinWidth(column);
+            int maxAllowedWidth = getColumnMaxWidth(column);
+            
+            maxWidth = Math.max(maxWidth, minWidth);
+            maxWidth = Math.min(maxWidth, maxAllowedWidth);
+            
+            cryptoTable.getColumnModel().getColumn(column).setPreferredWidth(maxWidth);
+        }
+    }
+    
+    /**
+     * Get minimum width for each column type
+     */
+    private int getColumnMinWidth(int column) {
+        switch (column) {
+            case 0: return 50;   // Code
+            case 1: return 120;  // Name
+            case 2: return 85;   // Holdings
+            case 3: return 90;   // Avg Cost
+            case 4: return 90;   // Current
+            case 5: return 85;   // Entry Target
+            case 6: return 80;   // 3M Target
+            case 7: return 80;   // Long Target
+            case 8: return 100;  // Total Value
+            case 9: return 90;   // P&L
+            case 10: return 85;  // % Change
+            case 11: return 80;  // AI Advice
+            default: return 80;
+        }
+    }
+    
+    /**
+     * Get maximum width for each column type to prevent overly wide columns
+     */
+    private int getColumnMaxWidth(int column) {
+        switch (column) {
+            case 0: return 80;   // Code
+            case 1: return 200;  // Name
+            case 2: return 120;  // Holdings
+            case 3: return 120;  // Avg Cost
+            case 4: return 120;  // Current
+            case 5: return 120;  // Entry Target
+            case 6: return 110;  // 3M Target
+            case 7: return 110;  // Long Target
+            case 8: return 150;  // Total Value
+            case 9: return 130;  // P&L
+            case 10: return 110; // % Change
+            case 11: return 120; // AI Advice
+            default: return 150;
+        }
+    }
+    
+    /**
+     * Create control panel with action buttons
+     */
+    public JPanel createControlPanel() {
+        JPanel controlPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 15, 20));
+        controlPanel.setBackground(BACKGROUND_COLOR);
+        
+        refreshButton = createModernButton("🔄 Refresh Prices", PRIMARY_COLOR);
+        refreshButton.addActionListener(e -> dataManager.refreshPrices());
+        
+        JButton refreshAiButton = createModernButton("🤖 Refresh AI", new Color(156, 39, 176));
+        refreshAiButton.addActionListener(e -> dataManager.refreshAiAdvice());
+        
+        addCryptoButton = createModernButton("➕ Add Crypto", SUCCESS_COLOR);
+        addCryptoButton.addActionListener(e -> showAddCryptoDialog());
+        
+        JButton removeButton = createModernButton("🗑️ Remove", DANGER_COLOR);
+        removeButton.addActionListener(e -> dataManager.removeCrypto(cryptoTable.getSelectedRow()));
+        
+        controlPanel.add(refreshButton);
+        controlPanel.add(refreshAiButton);
+        controlPanel.add(addCryptoButton);
+        controlPanel.add(removeButton);
+        
+        return controlPanel;
+    }
+    
+    /**
+     * Create modern styled button
+     */
+    private JButton createModernButton(String text, Color bgColor) {
+        JButton button = new JButton(text);
+        button.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        button.setForeground(Color.WHITE);
+        button.setBackground(bgColor);
+        button.setFocusPainted(false);
+        button.setBorderPainted(false);
+        button.setPreferredSize(new Dimension(140, 35));
+        button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        
+        // Hover effect
+        button.addMouseListener(new MouseAdapter() {
+            Color originalColor = bgColor;
+            
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                button.setBackground(new Color(originalColor.getRed(), originalColor.getGreen(), originalColor.getBlue(), 200));
+            }
+            
+            @Override
+            public void mouseExited(MouseEvent e) {
+                button.setBackground(originalColor);
+            }
+        });
+        
+        return button;
+    }
+    
+    /**
+     * Show add cryptocurrency dialog
+     */
+    private void showAddCryptoDialog() {
+        JDialog dialog = new JDialog((Frame) SwingUtilities.getWindowAncestor(cryptoTable), "Add New Cryptocurrency", true);
+        dialog.setLayout(new GridBagLayout());
+        dialog.getContentPane().setBackground(SURFACE_COLOR);
+        
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(15, 20, 10, 20);
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        
+        // Create modern input fields
+        JLabel titleLabel = new JLabel("📈 Add New Cryptocurrency");
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        titleLabel.setForeground(PRIMARY_COLOR);
+        titleLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        
+        JTextField idField = new JTextField(20);
+        JTextField nameField = new JTextField(20);
+        JTextField symbolField = new JTextField(20);
+        JTextField expectedPriceField = new JTextField(20);
+        JTextField expectedEntryField = new JTextField(20);
+        JTextField target3MonthField = new JTextField(20);
+        JTextField targetLongTermField = new JTextField(20);
+        JTextField holdingsField = new JTextField(20);
+        JTextField avgBuyPriceField = new JTextField(20);
+        
+        // Style input fields
+        styleTextField(idField);
+        styleTextField(nameField);
+        styleTextField(symbolField);
+        styleTextField(expectedPriceField);
+        styleTextField(expectedEntryField);
+        styleTextField(target3MonthField);
+        styleTextField(targetLongTermField);
+        styleTextField(holdingsField);
+        styleTextField(avgBuyPriceField);
+        
+        // Add placeholder text
+        setPlaceholderText(idField, "e.g., bitcoin, ethereum, cardano");
+        setPlaceholderText(nameField, "e.g., Bitcoin, Ethereum, Cardano");
+        setPlaceholderText(symbolField, "e.g., BTC, ETH, ADA");
+        setPlaceholderText(expectedPriceField, "e.g., 50000.0");
+        setPlaceholderText(expectedEntryField, "e.g., 45000.0");
+        setPlaceholderText(target3MonthField, "e.g., 60000.0");
+        setPlaceholderText(targetLongTermField, "e.g., 100000.0");
+        setPlaceholderText(holdingsField, "e.g., 0.00032973, 0.5, 2.0, 1000");
+        setPlaceholderText(avgBuyPriceField, "e.g., 45000.0");
+        
+        // Create labels with improved styling
+        JLabel[] labels = {
+            createStyledLabel("💎 Coin ID:", "The unique identifier used by CoinGecko API"),
+            createStyledLabel("🏷️ Display Name:", "The full name of the cryptocurrency"),
+            createStyledLabel("🔤 Symbol:", "The trading symbol (e.g., BTC, ETH)"),
+            createStyledLabel("🎯 Current Target:", "Your current expected price in USD"),
+            createStyledLabel("🔥 Entry Target:", "Your ideal entry/buy price in USD"),
+            createStyledLabel("📅 Target 3M:", "Your 3-month target price in USD"),
+            createStyledLabel("🚀 Target Long:", "Your long-term target price in USD"),
+            createStyledLabel("💰 Holding Amount:", "Number of coins you own"),
+            createStyledLabel("💵 Average Cost:", "Your average purchase price per coin")
+        };
+        
+        JTextField[] fields = {idField, nameField, symbolField, expectedPriceField, expectedEntryField, target3MonthField, targetLongTermField, holdingsField, avgBuyPriceField};
+        
+        // Add title
+        gbc.gridx = 0; gbc.gridy = 0; gbc.gridwidth = 2;
+        gbc.insets = new Insets(15, 20, 25, 20);
+        dialog.add(titleLabel, gbc);
+        
+        // Add form fields
+        gbc.gridwidth = 1;
+        gbc.insets = new Insets(8, 20, 8, 10);
+        for (int i = 0; i < labels.length; i++) {
+            gbc.gridy = i + 1;
+            gbc.gridx = 0;
+            gbc.weightx = 0.3;
+            dialog.add(labels[i], gbc);
+            
+            gbc.gridx = 1;
+            gbc.weightx = 0.7;
+            gbc.insets = new Insets(8, 10, 8, 20);
+            dialog.add(fields[i], gbc);
+            gbc.insets = new Insets(8, 20, 8, 10);
+        }
+        
+        // Buttons with improved styling
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 15, 10));
+        buttonPanel.setBackground(SURFACE_COLOR);
+        
+        JButton addButton = createModernButton("✅ Add Cryptocurrency", SUCCESS_COLOR);
+        JButton cancelButton = createModernButton("❌ Cancel", new Color(108, 117, 125));
+        
+        addButton.setPreferredSize(new Dimension(180, 40));
+        cancelButton.setPreferredSize(new Dimension(120, 40));
+        
+        addButton.addActionListener(e -> {
+            try {
+                String id = getFieldText(idField);
+                String name = getFieldText(nameField);
+                String symbol = getFieldText(symbolField).toUpperCase();
+                
+                if (id.isEmpty() || name.isEmpty() || symbol.isEmpty()) {
+                    showValidationError(dialog, "Please fill in all required fields (ID, Name, Symbol)!");
+                    return;
+                }
+                
+                double expectedPrice = parseDoubleField(expectedPriceField, "Current Target");
+                double expectedEntry = parseDoubleField(expectedEntryField, "Entry Target");
+                double target3Month = parseDoubleField(target3MonthField, "Target 3M");
+                double targetLongTerm = parseDoubleField(targetLongTermField, "Target Long");
+                double holdings = parseDoubleField(holdingsField, "Holding Amount");
+                double avgBuyPrice = parseDoubleField(avgBuyPriceField, "Average Cost");
+                
+                // If target fields are empty, default them to expected price
+                if (expectedEntry == 0.0) expectedEntry = expectedPrice * 0.9; // 10% below expected
+                if (target3Month == 0.0) target3Month = expectedPrice;
+                if (targetLongTerm == 0.0) targetLongTerm = expectedPrice;
+                
+                // Check for duplicate symbol
+                List<CryptoData> cryptoList = dataManager.getCryptoList();
+                for (CryptoData existing : cryptoList) {
+                    if (existing.symbol.equalsIgnoreCase(symbol)) {
+                        showValidationError(dialog, "A cryptocurrency with symbol '" + symbol + "' already exists!");
+                        return;
+                    }
+                }
+                
+                CryptoData newCrypto = new CryptoData(id, name, symbol, 0.0, expectedPrice, expectedEntry, target3Month, targetLongTerm, holdings, avgBuyPrice);
+                dataManager.addCrypto(newCrypto);
+                
+                dialog.dispose();
+                
+                // Show success message
+                JOptionPane.showMessageDialog(cryptoTable, 
+                    "Successfully added " + name + " (" + symbol + ") to your portfolio!", 
+                    "Success", 
+                    JOptionPane.INFORMATION_MESSAGE);
+                
+            } catch (NumberFormatException ex) {
+                showValidationError(dialog, "Please enter valid numbers for prices and amounts!");
+            } catch (Exception ex) {
+                showValidationError(dialog, "Error adding cryptocurrency: " + ex.getMessage());
+            }
+        });
+        
+        cancelButton.addActionListener(e -> dialog.dispose());
+        
+        buttonPanel.add(addButton);
+        buttonPanel.add(cancelButton);
+        
+        gbc.gridy = labels.length + 1;
+        gbc.gridx = 0; 
+        gbc.gridwidth = 2;
+        gbc.insets = new Insets(20, 20, 15, 20);
+        dialog.add(buttonPanel, gbc);
+        
+        dialog.setSize(550, 550);
+        dialog.setLocationRelativeTo(cryptoTable);
+        dialog.setResizable(false);
+        dialog.setVisible(true);
+    }
+    
+    /**
+     * Style text field with modern appearance
+     */
+    private void styleTextField(JTextField field) {
+        field.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        field.setBorder(new CompoundBorder(
+            new LineBorder(DIVIDER_COLOR, 1, true),
+            new EmptyBorder(8, 12, 8, 12)
+        ));
+        field.setBackground(SURFACE_COLOR);
+        field.setForeground(TEXT_PRIMARY);
+        
+        // Add focus listener for placeholder effect
+        field.addFocusListener(new FocusAdapter() {
+            @Override
+            public void focusGained(FocusEvent e) {
+                if (field.getForeground().equals(TEXT_SECONDARY)) {
+                    field.setText("");
+                    field.setForeground(TEXT_PRIMARY);
+                }
+            }
+        });
+    }
+    
+    /**
+     * Create styled label with tooltip
+     */
+    private JLabel createStyledLabel(String text, String tooltip) {
+        JLabel label = new JLabel(text);
+        label.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        label.setForeground(TEXT_PRIMARY);
+        if (tooltip != null && !tooltip.isEmpty()) {
+            label.setToolTipText(tooltip);
+        }
+        return label;
+    }
+    
+    /**
+     * Set placeholder text for text field
+     */
+    private void setPlaceholderText(JTextField field, String placeholder) {
+        field.setText(placeholder);
+        field.setForeground(TEXT_SECONDARY);
+        
+        field.addFocusListener(new FocusAdapter() {
+            @Override
+            public void focusGained(FocusEvent e) {
+                if (field.getText().equals(placeholder)) {
+                    field.setText("");
+                    field.setForeground(TEXT_PRIMARY);
+                }
+            }
+            
+            @Override
+            public void focusLost(FocusEvent e) {
+                if (field.getText().isEmpty()) {
+                    field.setText(placeholder);
+                    field.setForeground(TEXT_SECONDARY);
+                }
+            }
+        });
+    }
+    
+    /**
+     * Get actual text from field (excluding placeholder)
+     */
+    private String getFieldText(JTextField field) {
+        String text = field.getText().trim();
+        // Return empty string if it's still showing placeholder text
+        if (field.getForeground().equals(TEXT_SECONDARY)) {
+            return "";
+        }
+        return text;
+    }
+    
+    /**
+     * Parse double value from text field
+     */
+    private double parseDoubleField(JTextField field, String fieldName) throws NumberFormatException {
+        String text = getFieldText(field);
+        if (text.isEmpty()) {
+            return 0.0; // Default value for empty fields
+        }
+        try {
+            return Double.parseDouble(text);
+        } catch (NumberFormatException e) {
+            throw new NumberFormatException("Invalid " + fieldName + ": " + text);
+        }
+    }
+    
+    /**
+     * Show validation error dialog
+     */
+    private void showValidationError(JDialog parent, String message) {
+        JOptionPane.showMessageDialog(parent, message, "Validation Error", JOptionPane.ERROR_MESSAGE);
+    }
+    
+    /**
+     * Show AI analysis dialog with detailed recommendations
+     */
+    private void showAiAnalysisDialog(CryptoData crypto) {
+        JDialog dialog = new JDialog((Frame) SwingUtilities.getWindowAncestor(cryptoTable), 
+                                   "AI Analysis for " + crypto.name + " (" + crypto.symbol + ")", true);
+        dialog.setLayout(new BorderLayout());
+        dialog.getContentPane().setBackground(SURFACE_COLOR);
+        
+        // Create title panel
+        JPanel titlePanel = new JPanel(new BorderLayout());
+        titlePanel.setBackground(PRIMARY_COLOR);
+        titlePanel.setBorder(new EmptyBorder(15, 20, 15, 20));
+        
+        JLabel titleLabel = new JLabel("🤖 AI Investment Analysis");
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        titleLabel.setForeground(Color.WHITE);
+        
+        JLabel cryptoLabel = new JLabel(crypto.name + " (" + crypto.symbol + ")");
+        cryptoLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        cryptoLabel.setForeground(Color.WHITE);
+        
+        titlePanel.add(titleLabel, BorderLayout.NORTH);
+        titlePanel.add(cryptoLabel, BorderLayout.SOUTH);
+        
+        // Create analysis text area
+        JTextArea analysisArea = new JTextArea();
+        analysisArea.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        analysisArea.setBackground(SURFACE_COLOR);
+        analysisArea.setForeground(TEXT_PRIMARY);
+        analysisArea.setEditable(false);
+        analysisArea.setWrapStyleWord(true);
+        analysisArea.setLineWrap(true);
+        analysisArea.setBorder(new EmptyBorder(20, 20, 20, 20));
+        
+        // Set loading text initially
+        analysisArea.setText("🔄 Generating AI analysis...\n\nPlease wait while our AI analyzes " + crypto.name + " data...");
+        
+        // Create scroll pane for analysis
+        JScrollPane scrollPane = new JScrollPane(analysisArea);
+        scrollPane.setBorder(null);
+        scrollPane.setPreferredSize(new Dimension(600, 500));
+        scrollPane.getVerticalScrollBar().setUnitIncrement(16);
+        
+        // Create button panel
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 15, 15));
+        buttonPanel.setBackground(SURFACE_COLOR);
+        
+        JButton refreshButton = createModernButton("🔄 Refresh Analysis", PRIMARY_COLOR);
+        JButton closeButton = createModernButton("✅ Close", new Color(108, 117, 125));
+        
+        refreshButton.addActionListener(e -> {
+            analysisArea.setText("🔄 Refreshing analysis...\n\nPlease wait...");
+            // Generate new analysis in background
+            SwingWorker<String, Void> worker = new SwingWorker<String, Void>() {
+                @Override
+                protected String doInBackground() throws Exception {
+                    return AiAdviceService.getDetailedAnalysis(crypto);
+                }
+                
+                @Override
+                protected void done() {
+                    try {
+                        analysisArea.setText(get());
+                        analysisArea.setCaretPosition(0); // Scroll to top
+                    } catch (Exception ex) {
+                        analysisArea.setText("❌ Error generating analysis: " + ex.getMessage());
+                    }
+                }
+            };
+            worker.execute();
+        });
+        
+        closeButton.addActionListener(e -> dialog.dispose());
+        
+        buttonPanel.add(refreshButton);
+        buttonPanel.add(closeButton);
+        
+        // Add components to dialog
+        dialog.add(titlePanel, BorderLayout.NORTH);
+        dialog.add(scrollPane, BorderLayout.CENTER);
+        dialog.add(buttonPanel, BorderLayout.SOUTH);
+        
+        // Generate analysis in background
+        SwingWorker<String, Void> analysisWorker = new SwingWorker<String, Void>() {
+            @Override
+            protected String doInBackground() throws Exception {
+                return AiAdviceService.getDetailedAnalysis(crypto);
+            }
+            
+            @Override
+            protected void done() {
+                try {
+                    analysisArea.setText(get());
+                    analysisArea.setCaretPosition(0); // Scroll to top
+                } catch (Exception ex) {
+                    analysisArea.setText("❌ Error generating analysis: " + ex.getMessage());
+                }
+            }
+        };
+        analysisWorker.execute();
+        
+        // Configure and show dialog
+        dialog.setSize(650, 700);
+        dialog.setLocationRelativeTo(cryptoTable);
+        dialog.setResizable(true);
+        dialog.setVisible(true);
+    }
+    
+    /**
+     * Update portfolio value display
+     */
+    public void updatePortfolioValue(double totalValue, double totalProfitLoss) {
+        String valueText = "💰 Total Value: " + priceFormat.format(totalValue);
+        if (totalProfitLoss != 0) {
+            String profitLossText = (totalProfitLoss >= 0 ? " (+" : " (") + priceFormat.format(totalProfitLoss) + ")";
+            valueText += profitLossText;
+        }
+        
+        portfolioValueLabel.setText(valueText);
+        
+        // Update color based on profit/loss
+        if (totalProfitLoss > 0) {
+            portfolioValueLabel.setForeground(SUCCESS_COLOR);
+        } else if (totalProfitLoss < 0) {
+            portfolioValueLabel.setForeground(DANGER_COLOR);
+        } else {
+            portfolioValueLabel.setForeground(PRIMARY_COLOR);
+        }
+    }
+    
+    /**
+     * Add cryptocurrency data to table
+     */
+    public void addCryptoToTable(CryptoData crypto) {
+        Object[] rowData = {
+            crypto.symbol.toUpperCase(),                // Code
+            crypto.name,                                // Name
+            amountFormat.format(crypto.holdings),       // Holding Amount
+            priceFormat.format(crypto.avgBuyPrice),     // Average Cost
+            priceFormat.format(crypto.currentPrice),    // Current Price
+            priceFormat.format(crypto.expectedEntry),   // Entry Target
+            priceFormat.format(crypto.targetPrice3Month), // Target 3M
+            priceFormat.format(crypto.targetPriceLongTerm), // Target Long
+            priceFormat.format(crypto.getTotalValue()), // Total Value
+            priceFormat.format(crypto.getProfitLoss()), // Profit/Loss
+            percentFormat.format(crypto.getProfitLossPercentage()), // % Change
+            crypto.getAiAdvice() + " ℹ️"                 // AI Advice with info icon
+        };
+        tableModel.addRow(rowData);
+        
+        // Auto-fit column widths after adding new row with a slight delay
+        SwingUtilities.invokeLater(() -> {
+            autoFitColumnWidths();
+            cryptoTable.revalidate();
+        });
+    }
+    
+    /**
+     * Rebuild the entire table when order has changed
+     */
+    public void rebuildTable(List<CryptoData> cryptoList) {
+        tableModel.setRowCount(0);
+        for (CryptoData crypto : cryptoList) {
+            Object[] rowData = {
+                crypto.symbol.toUpperCase(),                // Code
+                crypto.name,                                // Name
+                amountFormat.format(crypto.holdings),       // Holding Amount
+                priceFormat.format(crypto.avgBuyPrice),     // Average Cost
+                priceFormat.format(crypto.currentPrice),    // Current Price
+                priceFormat.format(crypto.expectedEntry),   // Entry Target
+                priceFormat.format(crypto.targetPrice3Month), // Target 3M
+                priceFormat.format(crypto.targetPriceLongTerm), // Target Long
+                priceFormat.format(crypto.getTotalValue()), // Total Value
+                priceFormat.format(crypto.getProfitLoss()), // Profit/Loss
+                percentFormat.format(crypto.getProfitLossPercentage()), // % Change
+                crypto.getAiAdvice() + " ℹ️"                 // AI Advice with info icon
+            };
+            tableModel.addRow(rowData);
+        }
+    }
+    
+    /**
+     * Update table data for specific row
+     */
+    public void updateTableRow(int i, CryptoData crypto) {
+        tableModel.setValueAt(crypto.symbol.toUpperCase(), i, 0);
+        tableModel.setValueAt(crypto.name, i, 1);
+        tableModel.setValueAt(amountFormat.format(crypto.holdings), i, 2);
+        tableModel.setValueAt(priceFormat.format(crypto.avgBuyPrice), i, 3);
+        tableModel.setValueAt(priceFormat.format(crypto.currentPrice), i, 4);
+        tableModel.setValueAt(priceFormat.format(crypto.expectedEntry), i, 5);
+        tableModel.setValueAt(priceFormat.format(crypto.targetPrice3Month), i, 6);
+        tableModel.setValueAt(priceFormat.format(crypto.targetPriceLongTerm), i, 7);
+        tableModel.setValueAt(priceFormat.format(crypto.getTotalValue()), i, 8);
+        tableModel.setValueAt(priceFormat.format(crypto.getProfitLoss()), i, 9);
+        tableModel.setValueAt(percentFormat.format(crypto.getProfitLossPercentage()), i, 10);
+        tableModel.setValueAt(crypto.getAiAdvice() + " ℹ️", i, 11);
+    }
+    
+    // Getters for UI components
+    public JTable getCryptoTable() { return cryptoTable; }
+    public DefaultTableModel getTableModel() { return tableModel; }
+    public JButton getRefreshButton() { return refreshButton; }
+    public JLabel getStatusLabel() { return statusLabel; }
+    
+    // Enhanced custom table cell renderer with decorative styling
+    private class EnhancedPortfolioTableCellRenderer extends DefaultTableCellRenderer {
+        @Override
+        public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected,
+                boolean hasFocus, int row, int column) {
+            Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+            
+            // Enhanced padding and styling
+            setBorder(new CompoundBorder(
+                new LineBorder(new Color(245, 245, 245), 1),
+                new EmptyBorder(8, 12, 8, 12)
+            ));
+            setFont(new Font("Segoe UI", Font.PLAIN, 13));
+            
+            // Alternating row colors for better readability
+            Color evenRowColor = new Color(252, 252, 252);
+            Color oddRowColor = SURFACE_COLOR;
+            
+            if (!isSelected) {
+                if (row % 2 == 0) {
+                    c.setBackground(evenRowColor);
+                } else {
+                    c.setBackground(oddRowColor);
+                }
+                
+                // Special styling for different column types
+                if (column == 0) { // Symbol column
+                    setFont(new Font("Segoe UI", Font.BOLD, 13));
+                    setForeground(PRIMARY_COLOR);
+                    setHorizontalAlignment(CENTER);
+                } else if (column == 9 || column == 10) { // P&L and % Change columns
+                    List<CryptoData> cryptoList = dataManager.getCryptoList();
+                    if (row < cryptoList.size()) {
+                        CryptoData crypto = cryptoList.get(row);
+                        double profitLoss = crypto.getProfitLoss();
+                        
+                        if (profitLoss > 0) {
+                            setForeground(SUCCESS_COLOR);
+                            setFont(new Font("Segoe UI", Font.BOLD, 13));
+                        } else if (profitLoss < 0) {
+                            setForeground(DANGER_COLOR);
+                            setFont(new Font("Segoe UI", Font.BOLD, 13));
+                        } else {
+                            setForeground(TEXT_PRIMARY);
+                        }
+                    }
+                    setHorizontalAlignment(RIGHT);
+                } else if (column == 11) { // AI Advice column
+                    // Create custom panel for AI advice with icon positioning
+                    JPanel aiPanel = new JPanel(new BorderLayout());
+                    aiPanel.setOpaque(true);
+                    
+                    // Extract advice text without icon
+                    String fullText = value != null ? value.toString() : "Loading...";
+                    String adviceText = fullText.replace(" ℹ️", "").trim();
+                    
+                    // Create advice label
+                    JLabel adviceLabel = new JLabel(adviceText);
+                    adviceLabel.setFont(new Font("Segoe UI", Font.BOLD, 11));
+                    adviceLabel.setForeground(PRIMARY_COLOR);
+                    adviceLabel.setHorizontalAlignment(SwingConstants.CENTER);
+                    
+                    // Create info icon label
+                    JLabel iconLabel = new JLabel("ℹ️");
+                    iconLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+                    iconLabel.setHorizontalAlignment(SwingConstants.RIGHT);
+                    iconLabel.setVerticalAlignment(SwingConstants.TOP);
+                    iconLabel.setBorder(new EmptyBorder(2, 0, 0, 4));
+                    
+                    // Add components to panel
+                    aiPanel.add(adviceLabel, BorderLayout.CENTER);
+                    aiPanel.add(iconLabel, BorderLayout.EAST);
+                    
+                    // Set background color based on advice type
+                    Color bgColor = new Color(200, 200, 200, 30); // Default light gray
+                    if (!adviceText.equals("Loading...")) {
+                        String advice = adviceText.toLowerCase();
+                        if (advice.contains("buy") || advice.contains("good") || advice.contains("bullish")) {
+                            bgColor = new Color(76, 175, 80, 30); // Light green
+                        } else if (advice.contains("sell") || advice.contains("cut") || advice.contains("bearish")) {
+                            bgColor = new Color(244, 67, 54, 30); // Light red
+                        } else {
+                            bgColor = new Color(255, 193, 7, 30); // Light yellow for hold/wait
+                        }
+                    }
+                    
+                    aiPanel.setBackground(bgColor);
+                    adviceLabel.setOpaque(false);
+                    iconLabel.setOpaque(false);
+                    
+                    // Apply border
+                    aiPanel.setBorder(new CompoundBorder(
+                        new LineBorder(PRIMARY_COLOR, 1, true),
+                        new EmptyBorder(4, 6, 4, 6)
+                    ));
+                    
+                    // Add tooltip
+                    aiPanel.setToolTipText("Click for detailed AI analysis and recommendations");
+                    
+                    return aiPanel;
+                } else if (column >= 2 && column <= 8) { // Numeric columns
+                    setHorizontalAlignment(RIGHT);
+                    setForeground(TEXT_PRIMARY);
+                    
+                    // Special highlighting for current price column
+                    if (column == 4) {
+                        setFont(new Font("Segoe UI", Font.BOLD, 13));
+                    }
+                } else { // Text columns
+                    setHorizontalAlignment(LEFT);
+                    setForeground(TEXT_PRIMARY);
+                }
+                
+                // Add subtle hover effect simulation
+                if (hasFocus && !isSelected) {
+                    setBorder(new CompoundBorder(
+                        new LineBorder(PRIMARY_COLOR, 2),
+                        new EmptyBorder(6, 10, 6, 10)
+                    ));
+                }
+            } else {
+                // Selected row styling
+                c.setBackground(new Color(PRIMARY_COLOR.getRed(), PRIMARY_COLOR.getGreen(), PRIMARY_COLOR.getBlue(), 100));
+                setForeground(TEXT_PRIMARY);
+                setBorder(new CompoundBorder(
+                    new LineBorder(PRIMARY_COLOR, 2),
+                    new EmptyBorder(6, 10, 6, 10)
+                ));
+            }
+            
+            return c;
+        }
+    }
+}
