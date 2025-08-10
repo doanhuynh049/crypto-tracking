@@ -5,6 +5,7 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
+import java.util.concurrent.CompletableFuture;
 import org.json.JSONObject;
 
 /**
@@ -35,7 +36,133 @@ public class PortfolioDataManager {
     public void setUIBuilder(PortfolioUIBuilder uiBuilder) {
         this.uiBuilder = uiBuilder;
     }
-    
+
+    /**
+     * Validate cryptocurrency ID with CoinGecko API
+     * @param cryptoId The cryptocurrency ID to validate
+     * @return CompletableFuture<ValidationResult> containing validation info
+     */
+    public CompletableFuture<ValidationResult> validateCryptocurrencyId(String cryptoId) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                // Test API call to check if cryptocurrency exists
+                String apiUrl = "https://api.coingecko.com/api/v3/simple/price?ids=" + 
+                               cryptoId + "&vs_currencies=usd";
+                
+                URL url = new URL(apiUrl);
+                HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+                connection.setRequestMethod("GET");
+                connection.setConnectTimeout(10000);
+                connection.setReadTimeout(10000);
+                
+                int responseCode = connection.getResponseCode();
+                
+                if (responseCode == 200) {
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+                    StringBuilder response = new StringBuilder();
+                    String line;
+                    
+                    while ((line = reader.readLine()) != null) {
+                        response.append(line);
+                    }
+                    reader.close();
+                    
+                    JSONObject jsonResponse = new JSONObject(response.toString());
+                    
+                    if (jsonResponse.has(cryptoId)) {
+                        JSONObject cryptoData = jsonResponse.getJSONObject(cryptoId);
+                        if (cryptoData.has("usd")) {
+                            double currentPrice = cryptoData.getDouble("usd");
+                            return new ValidationResult(true, "Valid cryptocurrency ID", currentPrice, cryptoId);
+                        }
+                    }
+                    return new ValidationResult(false, "Cryptocurrency ID not found in API response", 0.0, cryptoId);
+                } else {
+                    return new ValidationResult(false, "API returned error code: " + responseCode, 0.0, cryptoId);
+                }
+                
+            } catch (Exception e) {
+                return new ValidationResult(false, "Error validating cryptocurrency: " + e.getMessage(), 0.0, cryptoId);
+            }
+        });
+    }
+
+    /**
+     * Inner class to represent validation results
+     */
+    public static class ValidationResult {
+        public final boolean isValid;
+        public final String message;
+        public final double currentPrice;
+        public final String cryptoId;
+        
+        public ValidationResult(boolean isValid, String message, double currentPrice, String cryptoId) {
+            this.isValid = isValid;
+            this.message = message;
+            this.currentPrice = currentPrice;
+            this.cryptoId = cryptoId;
+        }
+    }
+
+    /**
+     * Add new cryptocurrency to the portfolio with validation
+     */
+    public CompletableFuture<Boolean> addCryptoWithValidation(CryptoData newCrypto) {
+        return validateCryptocurrencyId(newCrypto.id)
+            .thenApply(validation -> {
+                SwingUtilities.invokeLater(() -> {
+                    if (validation.isValid) {
+                        // Update current price from validation
+                        newCrypto.currentPrice = validation.currentPrice;
+                        
+                        // Add to list
+                        cryptoList.add(newCrypto);
+                        
+                        // Sort and rebuild the table to maintain ranking by total value
+                        sortCryptosByTotalValue();
+                        rebuildTable();
+                        
+                        savePortfolioData();
+                        updatePortfolioValue();
+                        
+                        // Show success message with current price
+                        if (uiBuilder != null) {
+                            JOptionPane.showMessageDialog(uiBuilder.getCryptoTable(), 
+                                String.format("✅ Successfully added %s (%s)!\n\n" +
+                                            "📊 Current Price: $%.4f\n" +
+                                            "🔄 Price fetching is working correctly!",
+                                            newCrypto.name, newCrypto.symbol, validation.currentPrice), 
+                                "Cryptocurrency Added Successfully", 
+                                JOptionPane.INFORMATION_MESSAGE);
+                        }
+                        
+                        // Refresh prices to ensure everything is up to date
+                        refreshPrices();
+                        
+                    } else {
+                        // Show error message with suggestions
+                        String errorMsg = String.format("❌ Failed to add cryptocurrency!\n\n" +
+                                                       "🔍 Issue: %s\n\n" +
+                                                       "💡 Suggestions:\n" +
+                                                       "• Check if the Coin ID is correct\n" +
+                                                       "• Visit CoinGecko and search for your coin\n" +
+                                                       "• Use the exact ID from the coin's URL\n" +
+                                                       "• Example: bitcoin, ethereum, cardano, solana\n\n" +
+                                                       "🌐 Internet connection required for validation",
+                                                       validation.message);
+                        
+                        if (uiBuilder != null) {
+                            JOptionPane.showMessageDialog(uiBuilder.getCryptoTable(), 
+                                errorMsg, 
+                                "Validation Failed", 
+                                JOptionPane.ERROR_MESSAGE);
+                        }
+                    }
+                });
+                return validation.isValid;
+            });
+    }
+
     /**
      * Initialize default cryptocurrency list
      */
@@ -396,18 +523,11 @@ public class PortfolioDataManager {
     }
     
     /**
-     * Add new cryptocurrency to the portfolio
+     * Add new cryptocurrency to the portfolio (legacy method - calls validation version)
      */
     public void addCrypto(CryptoData newCrypto) {
-        cryptoList.add(newCrypto);
-        
-        // Sort and rebuild the table to maintain ranking by total value
-        sortCryptosByTotalValue();
-        rebuildTable();
-        
-        savePortfolioData();
-        updatePortfolioValue();
-        refreshPrices();
+        // Use the new validation method instead
+        addCryptoWithValidation(newCrypto);
     }
     
     /**

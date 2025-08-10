@@ -457,166 +457,12 @@ public class PortfolioUIBuilder {
     }
     
     /**
-     * Show add cryptocurrency dialog
+     * Show add cryptocurrency dialog using the new dedicated dialog class
      */
     private void showAddCryptoDialog() {
-        JDialog dialog = new JDialog((Frame) SwingUtilities.getWindowAncestor(cryptoTable), "Add New Cryptocurrency", true);
-        dialog.setLayout(new GridBagLayout());
-        dialog.getContentPane().setBackground(SURFACE_COLOR);
-        
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(15, 20, 10, 20);
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-        
-        // Create modern input fields
-        JLabel titleLabel = new JLabel("📈 Add New Cryptocurrency");
-        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
-        titleLabel.setForeground(PRIMARY_COLOR);
-        titleLabel.setHorizontalAlignment(SwingConstants.CENTER);
-        
-        JTextField idField = new JTextField(20);
-        JTextField nameField = new JTextField(20);
-        JTextField symbolField = new JTextField(20);
-        JTextField expectedPriceField = new JTextField(20);
-        JTextField expectedEntryField = new JTextField(20);
-        JTextField target3MonthField = new JTextField(20);
-        JTextField targetLongTermField = new JTextField(20);
-        JTextField holdingsField = new JTextField(20);
-        JTextField avgBuyPriceField = new JTextField(20);
-        
-        // Style input fields
-        styleTextField(idField);
-        styleTextField(nameField);
-        styleTextField(symbolField);
-        styleTextField(expectedPriceField);
-        styleTextField(expectedEntryField);
-        styleTextField(target3MonthField);
-        styleTextField(targetLongTermField);
-        styleTextField(holdingsField);
-        styleTextField(avgBuyPriceField);
-        
-        // Add placeholder text
-        setPlaceholderText(idField, "e.g., bitcoin, ethereum, cardano");
-        setPlaceholderText(nameField, "e.g., Bitcoin, Ethereum, Cardano");
-        setPlaceholderText(symbolField, "e.g., BTC, ETH, ADA");
-        setPlaceholderText(expectedPriceField, "e.g., 50000.0");
-        setPlaceholderText(expectedEntryField, "e.g., 45000.0");
-        setPlaceholderText(target3MonthField, "e.g., 60000.0");
-        setPlaceholderText(targetLongTermField, "e.g., 100000.0");
-        setPlaceholderText(holdingsField, "e.g., 0.00032973, 0.5, 2.0, 1000");
-        setPlaceholderText(avgBuyPriceField, "e.g., 45000.0");
-        
-        // Create labels with improved styling
-        JLabel[] labels = {
-            createStyledLabel("💎 Coin ID:", "The unique identifier used by CoinGecko API"),
-            createStyledLabel("🏷️ Display Name:", "The full name of the cryptocurrency"),
-            createStyledLabel("🔤 Symbol:", "The trading symbol (e.g., BTC, ETH)"),
-            createStyledLabel("🎯 Current Target:", "Your current expected price in USD"),
-            createStyledLabel("🔥 Entry Target:", "Your ideal entry/buy price in USD"),
-            createStyledLabel("📅 Target 3M:", "Your 3-month target price in USD"),
-            createStyledLabel("🚀 Target Long:", "Your long-term target price in USD"),
-            createStyledLabel("💰 Holding Amount:", "Number of coins you own"),
-            createStyledLabel("💵 Average Cost:", "Your average purchase price per coin")
-        };
-        
-        JTextField[] fields = {idField, nameField, symbolField, expectedPriceField, expectedEntryField, target3MonthField, targetLongTermField, holdingsField, avgBuyPriceField};
-        
-        // Add title
-        gbc.gridx = 0; gbc.gridy = 0; gbc.gridwidth = 2;
-        gbc.insets = new Insets(15, 20, 25, 20);
-        dialog.add(titleLabel, gbc);
-        
-        // Add form fields
-        gbc.gridwidth = 1;
-        gbc.insets = new Insets(8, 20, 8, 10);
-        for (int i = 0; i < labels.length; i++) {
-            gbc.gridy = i + 1;
-            gbc.gridx = 0;
-            gbc.weightx = 0.3;
-            dialog.add(labels[i], gbc);
-            
-            gbc.gridx = 1;
-            gbc.weightx = 0.7;
-            gbc.insets = new Insets(8, 10, 8, 20);
-            dialog.add(fields[i], gbc);
-            gbc.insets = new Insets(8, 20, 8, 10);
-        }
-        
-        // Buttons with improved styling
-        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 15, 10));
-        buttonPanel.setBackground(SURFACE_COLOR);
-        
-        JButton addButton = createModernButton("✅ Add Cryptocurrency", SUCCESS_COLOR);
-        JButton cancelButton = createModernButton("❌ Cancel", new Color(108, 117, 125));
-        
-        addButton.setPreferredSize(new Dimension(180, 40));
-        cancelButton.setPreferredSize(new Dimension(120, 40));
-        
-        addButton.addActionListener(e -> {
-            try {
-                String id = getFieldText(idField);
-                String name = getFieldText(nameField);
-                String symbol = getFieldText(symbolField).toUpperCase();
-                
-                if (id.isEmpty() || name.isEmpty() || symbol.isEmpty()) {
-                    showValidationError(dialog, "Please fill in all required fields (ID, Name, Symbol)!");
-                    return;
-                }
-                
-                double expectedPrice = parseDoubleField(expectedPriceField, "Current Target");
-                double expectedEntry = parseDoubleField(expectedEntryField, "Entry Target");
-                double target3Month = parseDoubleField(target3MonthField, "Target 3M");
-                double targetLongTerm = parseDoubleField(targetLongTermField, "Target Long");
-                double holdings = parseDoubleField(holdingsField, "Holding Amount");
-                double avgBuyPrice = parseDoubleField(avgBuyPriceField, "Average Cost");
-                
-                // If target fields are empty, default them to expected price
-                if (expectedEntry == 0.0) expectedEntry = expectedPrice * 0.9; // 10% below expected
-                if (target3Month == 0.0) target3Month = expectedPrice;
-                if (targetLongTerm == 0.0) targetLongTerm = expectedPrice;
-                
-                // Check for duplicate symbol
-                List<CryptoData> cryptoList = dataManager.getCryptoList();
-                for (CryptoData existing : cryptoList) {
-                    if (existing.symbol.equalsIgnoreCase(symbol)) {
-                        showValidationError(dialog, "A cryptocurrency with symbol '" + symbol + "' already exists!");
-                        return;
-                    }
-                }
-                
-                CryptoData newCrypto = new CryptoData(id, name, symbol, 0.0, expectedPrice, expectedEntry, target3Month, targetLongTerm, holdings, avgBuyPrice);
-                dataManager.addCrypto(newCrypto);
-                
-                dialog.dispose();
-                
-                // Show success message
-                JOptionPane.showMessageDialog(cryptoTable, 
-                    "Successfully added " + name + " (" + symbol + ") to your portfolio!", 
-                    "Success", 
-                    JOptionPane.INFORMATION_MESSAGE);
-                
-            } catch (NumberFormatException ex) {
-                showValidationError(dialog, "Please enter valid numbers for prices and amounts!");
-            } catch (Exception ex) {
-                showValidationError(dialog, "Error adding cryptocurrency: " + ex.getMessage());
-            }
-        });
-        
-        cancelButton.addActionListener(e -> dialog.dispose());
-        
-        buttonPanel.add(addButton);
-        buttonPanel.add(cancelButton);
-        
-        gbc.gridy = labels.length + 1;
-        gbc.gridx = 0; 
-        gbc.gridwidth = 2;
-        gbc.insets = new Insets(20, 20, 15, 20);
-        dialog.add(buttonPanel, gbc);
-        
-        dialog.setSize(550, 550);
-        dialog.setLocationRelativeTo(cryptoTable);
-        dialog.setResizable(false);
-        dialog.setVisible(true);
+        Frame parentFrame = (Frame) SwingUtilities.getWindowAncestor(cryptoTable);
+        AddCryptoDialog dialog = new AddCryptoDialog(parentFrame, dataManager);
+        dialog.showDialog();
     }
     
     /**
@@ -824,6 +670,100 @@ public class PortfolioUIBuilder {
         dialog.setResizable(true);
         dialog.setVisible(true);
     }
+    
+    /**
+     * Show help dialog for finding cryptocurrency IDs
+     */
+    private void showCoinIdHelpDialog(JDialog parent) {
+        JDialog helpDialog = new JDialog(parent, "🔍 How to Find Cryptocurrency ID", true);
+        helpDialog.setLayout(new BorderLayout());
+        helpDialog.getContentPane().setBackground(SURFACE_COLOR);
+        
+        // Create title panel
+        JPanel titlePanel = new JPanel(new BorderLayout());
+        titlePanel.setBackground(new Color(33, 150, 243));
+        titlePanel.setBorder(new EmptyBorder(15, 20, 15, 20));
+        
+        JLabel titleLabel = new JLabel("🔍 Finding the Correct Cryptocurrency ID");
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        titleLabel.setForeground(Color.WHITE);
+        titlePanel.add(titleLabel, BorderLayout.CENTER);
+        
+        // Create instructions text area
+        JTextArea instructionsArea = new JTextArea();
+        instructionsArea.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        instructionsArea.setBackground(SURFACE_COLOR);
+        instructionsArea.setForeground(TEXT_PRIMARY);
+        instructionsArea.setEditable(false);
+        instructionsArea.setWrapStyleWord(true);
+        instructionsArea.setLineWrap(true);
+        instructionsArea.setBorder(new EmptyBorder(20, 20, 20, 20));
+        
+        String instructions = """
+            📋 STEP-BY-STEP GUIDE:
+            
+            1️⃣ Visit CoinGecko.com in your web browser
+            
+            2️⃣ Search for your cryptocurrency (e.g., "Bitcoin", "Ethereum")
+            
+            3️⃣ Click on the cryptocurrency from search results
+            
+            4️⃣ Look at the URL in your browser address bar:
+               • Example: https://www.coingecko.com/en/coins/bitcoin
+               • The ID is the last part: "bitcoin"
+            
+            💡 COMMON EXAMPLES:
+            • Bitcoin → bitcoin
+            • Ethereum → ethereum
+            • Binance Coin → binancecoin
+            • Cardano → cardano
+            • Solana → solana
+            • Dogecoin → dogecoin
+            • Polkadot → polkadot
+            • Chainlink → chainlink
+            • Polygon → polygon
+            • Avalanche → avalanche-2
+            
+            ⚠️ IMPORTANT NOTES:
+            • Use the exact ID from the URL (all lowercase)
+            • Some coins have numbers (e.g., "avalanche-2")
+            • The ID might be different from the name or symbol
+            • Spaces are replaced with hyphens (-)
+            
+            ✅ VERIFICATION:
+            The app will automatically test the ID when you click "Add Cryptocurrency"
+            and show you the current price if it's valid!
+            """;
+        
+        instructionsArea.setText(instructions);
+        
+        // Create scroll pane
+        JScrollPane scrollPane = new JScrollPane(instructionsArea);
+        scrollPane.setBorder(null);
+        scrollPane.setPreferredSize(new Dimension(500, 400));
+        scrollPane.getVerticalScrollBar().setUnitIncrement(16);
+        
+        // Create close button
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 15, 15));
+        buttonPanel.setBackground(SURFACE_COLOR);
+        
+        JButton closeButton = createModernButton("✅ Got It!", new Color(33, 150, 243));
+        closeButton.addActionListener(e -> helpDialog.dispose());
+        buttonPanel.add(closeButton);
+        
+        // Add components to dialog
+        helpDialog.add(titlePanel, BorderLayout.NORTH);
+        helpDialog.add(scrollPane, BorderLayout.CENTER);
+        helpDialog.add(buttonPanel, BorderLayout.SOUTH);
+        
+        // Configure and show dialog
+        helpDialog.setSize(550, 600);
+        helpDialog.setLocationRelativeTo(parent);
+        helpDialog.setResizable(true);
+        helpDialog.setVisible(true);
+    }
+
+    // ...existing code...
     
     /**
      * Update portfolio value display
