@@ -68,13 +68,20 @@ public class PortfolioDataManager {
             // Sort by total value before displaying
             sortCryptosByTotalValue();
             
+            // Reset all cryptocurrencies to LOADING state for a fresh start
+            for (CryptoData crypto : cryptoList) {
+                crypto.aiStatus = "LOADING";
+                crypto.aiAdvice = "Loading...";
+                crypto.isAiGenerated = false;
+            }
+            
             if (uiBuilder != null) {
                 uiBuilder.getTableModel().setRowCount(0);
                 for (CryptoData crypto : cryptoList) {
                     uiBuilder.addCryptoToTable(crypto);
                 }
                 updatePortfolioValue(); // Update portfolio value display
-                // Initialize AI status
+                // Initialize AI status with all loading
                 updateAiStatusProgress();
                 // Auto-fit column widths after loading all data with a delay to ensure proper calculation
                 SwingUtilities.invokeLater(() -> {
@@ -180,9 +187,16 @@ public class PortfolioDataManager {
      * Refresh AI advice for all cryptocurrencies (called separately from price refresh)
      */
     public void refreshAiAdvice() {
+        // Reset all cryptocurrencies to LOADING state before starting AI refresh
+        for (CryptoData crypto : cryptoList) {
+            crypto.aiStatus = "LOADING";
+            crypto.aiAdvice = "Loading...";
+            crypto.isAiGenerated = false;
+        }
+        
         if (uiBuilder != null) {
             uiBuilder.getStatusLabel().setText("📊 Portfolio Status: Updating AI advice...");
-            // Initialize AI status label for progress tracking
+            // Initialize AI status label for progress tracking - all cryptos are now loading
             uiBuilder.updateAiStatusLabel(cryptoList.size(), 0, 0, 0, cryptoList.size());
         }
         
@@ -195,7 +209,7 @@ public class PortfolioDataManager {
             
             @Override
             protected void done() {
-                updateTableData();
+                // Don't call updateTableData() here as the sequential process handles final updates
                 if (uiBuilder != null) {
                     uiBuilder.getStatusLabel().setText("📊 Portfolio Status: Ready");
                 }
