@@ -569,109 +569,11 @@ public class PortfolioUIBuilder {
      * Show AI analysis dialog with detailed recommendations
      */
     private void showAiAnalysisDialog(CryptoData crypto) {
-        JDialog dialog = new JDialog((Frame) SwingUtilities.getWindowAncestor(cryptoTable), 
-                                   "AI Analysis for " + crypto.name + " (" + crypto.symbol + ")", true);
-        dialog.setLayout(new BorderLayout());
-        dialog.getContentPane().setBackground(SURFACE_COLOR);
+        LoggerUtil.info(PortfolioUIBuilder.class, "Opening AI Analysis Dialog for " + crypto.symbol);
         
-        // Create title panel
-        JPanel titlePanel = new JPanel(new BorderLayout());
-        titlePanel.setBackground(PRIMARY_COLOR);
-        titlePanel.setBorder(new EmptyBorder(15, 20, 15, 20));
-        
-        JLabel titleLabel = new JLabel("🤖 AI Investment Analysis");
-        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
-        titleLabel.setForeground(Color.WHITE);
-        
-        JLabel cryptoLabel = new JLabel(crypto.name + " (" + crypto.symbol + ")");
-        cryptoLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-        cryptoLabel.setForeground(Color.WHITE);
-        
-        titlePanel.add(titleLabel, BorderLayout.NORTH);
-        titlePanel.add(cryptoLabel, BorderLayout.SOUTH);
-        
-        // Create analysis text area
-        JTextArea analysisArea = new JTextArea();
-        analysisArea.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        analysisArea.setBackground(SURFACE_COLOR);
-        analysisArea.setForeground(TEXT_PRIMARY);
-        analysisArea.setEditable(false);
-        analysisArea.setWrapStyleWord(true);
-        analysisArea.setLineWrap(true);
-        analysisArea.setBorder(new EmptyBorder(20, 20, 20, 20));
-        
-        // Set loading text initially
-        analysisArea.setText("🔄 Generating AI analysis...\n\nPlease wait while our AI analyzes " + crypto.name + " data...");
-        
-        // Create scroll pane for analysis
-        JScrollPane scrollPane = new JScrollPane(analysisArea);
-        scrollPane.setBorder(null);
-        scrollPane.setPreferredSize(new Dimension(600, 500));
-        scrollPane.getVerticalScrollBar().setUnitIncrement(16);
-        
-        // Create button panel
-        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 15, 15));
-        buttonPanel.setBackground(SURFACE_COLOR);
-        
-        JButton refreshButton = createModernButton("🔄 Refresh Analysis", PRIMARY_COLOR);
-        JButton closeButton = createModernButton("✅ Close", new Color(108, 117, 125));
-        
-        refreshButton.addActionListener(e -> {
-            analysisArea.setText("🔄 Refreshing analysis...\n\nPlease wait...");
-            // Generate new analysis in background
-            SwingWorker<String, Void> worker = new SwingWorker<String, Void>() {
-                @Override
-                protected String doInBackground() throws Exception {
-                    return AiAdviceService.getDetailedAnalysis(crypto);
-                }
-                
-                @Override
-                protected void done() {
-                    try {
-                        analysisArea.setText(get());
-                        analysisArea.setCaretPosition(0); // Scroll to top
-                    } catch (Exception ex) {
-                        analysisArea.setText("❌ Error generating analysis: " + ex.getMessage());
-                    }
-                }
-            };
-            worker.execute();
-        });
-        
-        closeButton.addActionListener(e -> dialog.dispose());
-        
-        buttonPanel.add(refreshButton);
-        buttonPanel.add(closeButton);
-        
-        // Add components to dialog
-        dialog.add(titlePanel, BorderLayout.NORTH);
-        dialog.add(scrollPane, BorderLayout.CENTER);
-        dialog.add(buttonPanel, BorderLayout.SOUTH);
-        
-        // Generate analysis in background
-        SwingWorker<String, Void> analysisWorker = new SwingWorker<String, Void>() {
-            @Override
-            protected String doInBackground() throws Exception {
-                return AiAdviceService.getDetailedAnalysis(crypto);
-            }
-            
-            @Override
-            protected void done() {
-                try {
-                    analysisArea.setText(get());
-                    analysisArea.setCaretPosition(0); // Scroll to top
-                } catch (Exception ex) {
-                    analysisArea.setText("❌ Error generating analysis: " + ex.getMessage());
-                }
-            }
-        };
-        analysisWorker.execute();
-        
-        // Configure and show dialog
-        dialog.setSize(650, 700);
-        dialog.setLocationRelativeTo(cryptoTable);
-        dialog.setResizable(true);
-        dialog.setVisible(true);
+        // Create and show the dedicated AI analysis dialog
+        AiAnalysisDialog aiDialog = new AiAnalysisDialog(cryptoTable, crypto);
+        aiDialog.showDialog();
     }
     
     /**
