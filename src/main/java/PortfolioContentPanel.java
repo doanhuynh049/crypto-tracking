@@ -16,19 +16,27 @@ public class PortfolioContentPanel extends JPanel {
     private static final Color BACKGROUND_COLOR = new Color(248, 249, 250);
     
     public PortfolioContentPanel() {
-        // Initialize data manager first
-        dataManager = new PortfolioDataManager();
+        LoggerUtil.info(PortfolioContentPanel.class, "Initializing Portfolio Content Panel");
         
-        // Initialize UI builder with data manager reference
-        uiBuilder = new PortfolioUIBuilder(dataManager);
-        
-        // Set UI builder reference in data manager for callbacks
-        dataManager.setUIBuilder(uiBuilder);
-        
-        // Setup the UI
-        setupUI();
-        
-        // Load initial data and prices
+        try {
+            // Initialize data manager first
+            dataManager = new PortfolioDataManager();
+            
+            // Initialize UI builder with data manager reference
+            uiBuilder = new PortfolioUIBuilder(dataManager);
+            
+            // Set UI builder reference in data manager for callbacks
+            dataManager.setUIBuilder(uiBuilder);
+            
+            // Setup the UI
+            setupUI();
+            
+            // Load initial data and prices
+            LoggerUtil.info(PortfolioContentPanel.class, "Portfolio Content Panel initialized successfully");
+        } catch (Exception e) {
+            LoggerUtil.error(PortfolioContentPanel.class, "Failed to initialize Portfolio Content Panel", e);
+            throw e;
+        }
         dataManager.loadInitialPrices();
         
         // Fetch AI advice once during initialization

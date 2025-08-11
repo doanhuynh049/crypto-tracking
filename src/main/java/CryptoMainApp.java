@@ -4,6 +4,8 @@ import javax.swing.border.LineBorder;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -37,12 +39,22 @@ public class CryptoMainApp extends JFrame {
     private static final Font TITLE_FONT = new Font("Segoe UI", Font.BOLD, 20);
     
     public CryptoMainApp() {
-        initializeNavigationItems();
-        setupUI();
-        selectNavigationItem(navigationItems.get(0)); // Select first item by default
+        LoggerUtil.logAppStart("CryptoMainApp");
+        LoggerUtil.info(CryptoMainApp.class, "Initializing Crypto Portfolio Manager");
+        
+        try {
+            initializeNavigationItems();
+            setupUI();
+            selectNavigationItem(navigationItems.get(0)); // Select first item by default
+            LoggerUtil.info(CryptoMainApp.class, "Application initialization completed successfully");
+        } catch (Exception e) {
+            LoggerUtil.error(CryptoMainApp.class, "Failed to initialize application", e);
+            throw e;
+        }
     }
     
     private void initializeNavigationItems() {
+        LoggerUtil.debug(CryptoMainApp.class, "Initializing navigation items");
         navigationItems = new ArrayList<>();
         navigationItems.add(new NavigationItem("💰", "My Portfolio", "View and manage your crypto portfolio"));
         navigationItems.add(new NavigationItem("📊", "Market Overview", "Real-time market data and trends"));
@@ -53,8 +65,20 @@ public class CryptoMainApp extends JFrame {
     }
     
     private void setupUI() {
+        LoggerUtil.debug(CryptoMainApp.class, "Setting up user interface");
         setTitle("🚀 Crypto Portfolio Manager");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        
+        // Add window listener for proper shutdown
+        addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosing(WindowEvent e) {
+                LoggerUtil.logAppShutdown("CryptoMainApp");
+                LoggerUtil.shutdown();
+                System.exit(0);
+            }
+        });
+        
         setLayout(new BorderLayout());
         getContentPane().setBackground(BACKGROUND_COLOR);
         
@@ -220,6 +244,8 @@ public class CryptoMainApp extends JFrame {
     }
     
     private void selectNavigationItem(NavigationItem item) {
+        LoggerUtil.logUserAction("Selected navigation item: " + item.title);
+        
         // Update previous selection
         if (selectedItem != null) {
             selectedItem.buttonPanel.setBackground(NAV_COLOR);
@@ -250,69 +276,85 @@ public class CryptoMainApp extends JFrame {
     }
     
     private void loadContentForItem(NavigationItem item) {
-        // Remove current content
-        if (currentContentPanel != null) {
-            rightPanel.remove(currentContentPanel);
-        }
+        LoggerUtil.debug(CryptoMainApp.class, "Loading content for: " + item.title);
         
-        // Create new content based on selected item
-        switch (item.title) {
-            case "My Portfolio":
-                currentContentPanel = createPortfolioContent();
-                break;
-            case "Market Overview":
-                currentContentPanel = createMarketOverviewContent();
-                break;
-            case "Trading View":
-                currentContentPanel = createTradingViewContent();
-                break;
-            case "Watchlist":
-                currentContentPanel = createWatchlistContent();
-                break;
-            case "News & Updates":
-                currentContentPanel = createNewsContent();
-                break;
-            case "Settings":
-                currentContentPanel = createSettingsContent();
-                break;
-            default:
-                currentContentPanel = createDefaultContent(item);
-                break;
+        try {
+            // Remove current content
+            if (currentContentPanel != null) {
+                rightPanel.remove(currentContentPanel);
+            }
+            
+            // Create new content based on selected item
+            switch (item.title) {
+                case "My Portfolio":
+                    currentContentPanel = createPortfolioContent();
+                    break;
+                case "Market Overview":
+                    currentContentPanel = createMarketOverviewContent();
+                    break;
+                case "Trading View":
+                    currentContentPanel = createTradingViewContent();
+                    break;
+                case "Watchlist":
+                    currentContentPanel = createWatchlistContent();
+                    break;
+                case "News & Updates":
+                    currentContentPanel = createNewsContent();
+                    break;
+                case "Settings":
+                    currentContentPanel = createSettingsContent();
+                    break;
+                default:
+                    currentContentPanel = createDefaultContent(item);
+                    break;
+            }
+            
+            rightPanel.add(currentContentPanel, BorderLayout.CENTER);
+            rightPanel.revalidate();
+            rightPanel.repaint();
+            
+            LoggerUtil.debug(CryptoMainApp.class, "Content loaded successfully for: " + item.title);
+        } catch (Exception e) {
+            LoggerUtil.error(CryptoMainApp.class, "Failed to load content for: " + item.title, e);
         }
-        
-        rightPanel.add(currentContentPanel, BorderLayout.CENTER);
-        rightPanel.revalidate();
-        rightPanel.repaint();
     }
     
     private JPanel createPortfolioContent() {
-        JPanel portfolioPanel = new JPanel(new BorderLayout());
-        portfolioPanel.setBackground(BACKGROUND_COLOR);
+        LoggerUtil.debug(CryptoMainApp.class, "Creating portfolio content panel");
         
-        // Create header for portfolio section
-        JPanel headerPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        headerPanel.setBackground(BACKGROUND_COLOR);
-        headerPanel.setBorder(new EmptyBorder(20, 20, 10, 20));
-        
-        JLabel headerLabel = new JLabel("💰 My Portfolio");
-        headerLabel.setFont(new Font("Segoe UI", Font.BOLD, 24));
-        headerLabel.setForeground(TEXT_PRIMARY);
-        
-        headerPanel.add(headerLabel);
-        portfolioPanel.add(headerPanel, BorderLayout.NORTH);
-        
-        // Create container for the portfolio content
-        JPanel contentContainer = new JPanel(new BorderLayout());
-        contentContainer.setBackground(BACKGROUND_COLOR);
-        contentContainer.setBorder(new EmptyBorder(0, 20, 20, 20));
-        
-        // Use the dedicated PortfolioContentPanel
-        PortfolioContentPanel portfolioContent = new PortfolioContentPanel();
-        contentContainer.add(portfolioContent, BorderLayout.CENTER);
-        
-        portfolioPanel.add(contentContainer, BorderLayout.CENTER);
-        
-        return portfolioPanel;
+        try {
+            JPanel portfolioPanel = new JPanel(new BorderLayout());
+            portfolioPanel.setBackground(BACKGROUND_COLOR);
+            
+            // Create header for portfolio section
+            JPanel headerPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+            headerPanel.setBackground(BACKGROUND_COLOR);
+            headerPanel.setBorder(new EmptyBorder(20, 20, 10, 20));
+            
+            JLabel headerLabel = new JLabel("💰 My Portfolio");
+            headerLabel.setFont(new Font("Segoe UI", Font.BOLD, 24));
+            headerLabel.setForeground(TEXT_PRIMARY);
+            
+            headerPanel.add(headerLabel);
+            portfolioPanel.add(headerPanel, BorderLayout.NORTH);
+            
+            // Create container for the portfolio content
+            JPanel contentContainer = new JPanel(new BorderLayout());
+            contentContainer.setBackground(BACKGROUND_COLOR);
+            contentContainer.setBorder(new EmptyBorder(0, 20, 20, 20));
+            
+            // Use the dedicated PortfolioContentPanel
+            PortfolioContentPanel portfolioContent = new PortfolioContentPanel();
+            contentContainer.add(portfolioContent, BorderLayout.CENTER);
+            
+            portfolioPanel.add(contentContainer, BorderLayout.CENTER);
+            
+            LoggerUtil.info(CryptoMainApp.class, "Portfolio content panel created successfully");
+            return portfolioPanel;
+        } catch (Exception e) {
+            LoggerUtil.error(CryptoMainApp.class, "Failed to create portfolio content", e);
+            return createErrorContent("Failed to load portfolio");
+        }
     }
     
     private JButton createModernButton(String text, Color bgColor) {
@@ -393,6 +435,37 @@ public class CryptoMainApp extends JFrame {
         return contentPanel;
     }
     
+    private JPanel createErrorContent(String errorMessage) {
+        LoggerUtil.warning(CryptoMainApp.class, "Creating error content panel: " + errorMessage);
+        
+        JPanel errorPanel = new JPanel(new BorderLayout());
+        errorPanel.setBackground(BACKGROUND_COLOR);
+        errorPanel.setBorder(new EmptyBorder(40, 40, 40, 40));
+        
+        JPanel centerPanel = new JPanel();
+        centerPanel.setLayout(new BoxLayout(centerPanel, BoxLayout.Y_AXIS));
+        centerPanel.setBackground(SURFACE_COLOR);
+        centerPanel.setBorder(new EmptyBorder(60, 40, 60, 40));
+        
+        JLabel errorLabel = new JLabel("⚠️ Error");
+        errorLabel.setFont(new Font("Segoe UI", Font.BOLD, 32));
+        errorLabel.setForeground(Color.RED);
+        errorLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        
+        JLabel messageLabel = new JLabel(errorMessage);
+        messageLabel.setFont(new Font("Segoe UI", Font.PLAIN, 16));
+        messageLabel.setForeground(TEXT_SECONDARY);
+        messageLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        
+        centerPanel.add(errorLabel);
+        centerPanel.add(Box.createVerticalStrut(15));
+        centerPanel.add(messageLabel);
+        
+        errorPanel.add(centerPanel, BorderLayout.CENTER);
+        
+        return errorPanel;
+    }
+    
     // Navigation item data class
     private static class NavigationItem {
         String icon;
@@ -409,10 +482,21 @@ public class CryptoMainApp extends JFrame {
     }
     
     public static void main(String[] args) {
+        LoggerUtil.logSystemEvent("Application startup initiated");
+        
         // Enable modern rendering
         System.setProperty("awt.useSystemAAFontSettings", "on");
         System.setProperty("swing.aatext", "true");
         
-        SwingUtilities.invokeLater(() -> new CryptoMainApp());
+        LoggerUtil.info("Starting Crypto Portfolio Manager with enhanced rendering");
+        
+        SwingUtilities.invokeLater(() -> {
+            try {
+                new CryptoMainApp();
+            } catch (Exception e) {
+                LoggerUtil.error("Failed to start application", e);
+                System.exit(1);
+            }
+        });
     }
 }

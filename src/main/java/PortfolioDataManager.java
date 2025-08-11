@@ -24,9 +24,19 @@ public class PortfolioDataManager {
     private Timer refreshTimer;
     
     public PortfolioDataManager() {
-        loadPortfolioData(); // Load saved data first
-        if (cryptoList.isEmpty()) {
-            initializeCryptoList(); // Only initialize defaults if no saved data
+        LoggerUtil.info(PortfolioDataManager.class, "Initializing Portfolio Data Manager");
+        
+        try {
+            loadPortfolioData(); // Load saved data first
+            if (cryptoList.isEmpty()) {
+                LoggerUtil.info(PortfolioDataManager.class, "No saved data found, initializing with default cryptocurrency list");
+                initializeCryptoList(); // Only initialize defaults if no saved data
+            } else {
+                LoggerUtil.info(PortfolioDataManager.class, "Loaded " + cryptoList.size() + " cryptocurrency entries from saved data");
+            }
+        } catch (Exception e) {
+            LoggerUtil.error(PortfolioDataManager.class, "Failed to initialize Portfolio Data Manager", e);
+            throw e;
         }
     }
     
@@ -43,11 +53,15 @@ public class PortfolioDataManager {
      * @return CompletableFuture<ValidationResult> containing validation info
      */
     public CompletableFuture<ValidationResult> validateCryptocurrencyId(String cryptoId) {
+        LoggerUtil.debug(PortfolioDataManager.class, "Validating cryptocurrency ID: " + cryptoId);
+        
         return CompletableFuture.supplyAsync(() -> {
             try {
                 // Test API call to check if cryptocurrency exists
                 String apiUrl = "https://api.coingecko.com/api/v3/simple/price?ids=" + 
                                cryptoId + "&vs_currencies=usd";
+                
+                LoggerUtil.debug(PortfolioDataManager.class, "Making API request to validate: " + cryptoId);
                 
                 URL url = new URL(apiUrl);
                 HttpURLConnection connection = (HttpURLConnection) url.openConnection();
@@ -234,6 +248,8 @@ public class PortfolioDataManager {
      * Refresh cryptocurrency prices
      */
     public void refreshPrices() {
+        LoggerUtil.debug(PortfolioDataManager.class, "Starting price refresh");
+        
         if (uiBuilder != null) {
             uiBuilder.getStatusLabel().setText("📊 Portfolio Status: Refreshing...");
             uiBuilder.getRefreshButton().setEnabled(false);
@@ -250,6 +266,7 @@ public class PortfolioDataManager {
             
             @Override
             protected void done() {
+                LoggerUtil.debug(PortfolioDataManager.class, "Price refresh completed");
                 updateTableData();
                 if (uiBuilder != null) {
                     uiBuilder.getStatusLabel().setText("📊 Portfolio Status: Ready");
@@ -266,6 +283,8 @@ public class PortfolioDataManager {
      * Fetch cryptocurrency prices from API
      */
     private void fetchCryptoPrices() {
+        LoggerUtil.debug(PortfolioDataManager.class, "Fetching cryptocurrency prices from API");
+        
         try {
             StringBuilder cryptoIds = new StringBuilder();
             for (int i = 0; i < cryptoList.size(); i++) {
@@ -275,6 +294,8 @@ public class PortfolioDataManager {
             
             String apiUrl = "https://api.coingecko.com/api/v3/simple/price?ids=" + 
                            cryptoIds.toString() + "&vs_currencies=usd";
+            
+            LoggerUtil.debug(PortfolioDataManager.class, "API Request URL: " + apiUrl);
             
             URL url = new URL(apiUrl);
             HttpURLConnection connection = (HttpURLConnection) url.openConnection();
@@ -292,16 +313,30 @@ public class PortfolioDataManager {
             reader.close();
             
             JSONObject jsonResponse = new JSONObject(response.toString());
+            int updatedPrices = 0;
+            
             for (CryptoData crypto : cryptoList) {
                 if (jsonResponse.has(crypto.id)) {
                     JSONObject cryptoData = jsonResponse.getJSONObject(crypto.id);
                     if (cryptoData.has("usd")) {
+                        double oldPrice = crypto.currentPrice;
                         crypto.currentPrice = cryptoData.getDouble("usd");
+                        
+                        if (oldPrice != crypto.currentPrice) {
+                            updatedPrices++;
+                            LoggerUtil.debug(PortfolioDataManager.class, 
+                                String.format("Price updated for %s: $%.4f -> $%.4f", 
+                                    crypto.symbol, oldPrice, crypto.currentPrice));
+                        }
                     }
                 }
             }
             
+            LoggerUtil.info(PortfolioDataManager.class, 
+                String.format("Successfully updated prices for %d cryptocurrencies", updatedPrices));
+            
         } catch (Exception e) {
+            LoggerUtil.error(PortfolioDataManager.class, "Failed to fetch cryptocurrency prices", e);
             SwingUtilities.invokeLater(() -> {
                 if (uiBuilder != null) {
                     uiBuilder.getStatusLabel().setText("📊 Portfolio Status: Error fetching prices");
@@ -619,12 +654,16 @@ public class PortfolioDataManager {
      * Save portfolio data - internal method
      */
     private void savePortfolioDataPrivate() {
+        LoggerUtil.debug(PortfolioDataManager.class, "Saving portfolio data to file");
+        
         try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(DATA_FILE))) {
             oos.writeObject(cryptoList);
             // Also save as properties backup for compatibility
             savePortfolioDataAsProperties();
+            LoggerUtil.info(PortfolioDataManager.class, 
+                String.format("Portfolio data saved successfully (%d cryptocurrencies)", cryptoList.size()));
         } catch (IOException e) {
-            System.err.println("Error saving portfolio data: " + e.getMessage());
+            LoggerUtil.error(PortfolioDataManager.class, "Error saving portfolio data", e);
         }
     }
     
@@ -661,10 +700,13 @@ public class PortfolioDataManager {
     
     @SuppressWarnings("unchecked")
     private void loadPortfolioData() {
+        LoggerUtil.debug(PortfolioDataManager.class, "Loading portfolio data from file");
+        
         cryptoList = new ArrayList<>();
         File file = new File(DATA_FILE);
         
         if (!file.exists()) {
+            LoggerUtil.info(PortfolioDataManager.class, "Portfolio data file not found, attempting to load from backup");
             // Try to load from backup properties file
             loadFromPropertiesBackup();
             return;
@@ -678,9 +720,11 @@ public class PortfolioDataManager {
                 for (CryptoData crypto : cryptoList) {
                     crypto.initializeAiFields();
                 }
+                LoggerUtil.info(PortfolioDataManager.class, 
+                    String.format("Successfully loaded %d cryptocurrencies from portfolio data file", cryptoList.size()));
             }
         } catch (IOException | ClassNotFoundException e) {
-            System.err.println("Error loading portfolio data: " + e.getMessage());
+            LoggerUtil.error(PortfolioDataManager.class, "Error loading portfolio data from binary file", e);
             // Try to load from backup properties file
             loadFromPropertiesBackup();
         }

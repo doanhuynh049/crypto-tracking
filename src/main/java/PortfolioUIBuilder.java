@@ -45,6 +45,7 @@ public class PortfolioUIBuilder {
     private static final Color DIVIDER_COLOR = new Color(224, 224, 224);
     
     public PortfolioUIBuilder(PortfolioDataManager dataManager) {
+        LoggerUtil.info(PortfolioUIBuilder.class, "Initializing Portfolio UI Builder");
         this.dataManager = dataManager;
     }
     
@@ -82,6 +83,8 @@ public class PortfolioUIBuilder {
      * Create the main table panel with cryptocurrency data
      */
     public JPanel createTablePanel() {
+        LoggerUtil.debug(PortfolioUIBuilder.class, "Creating table panel");
+        
         JPanel tablePanel = new JPanel(new BorderLayout());
         tablePanel.setBackground(BACKGROUND_COLOR);
         
@@ -791,6 +794,8 @@ public class PortfolioUIBuilder {
      * Add cryptocurrency data to table
      */
     public void addCryptoToTable(CryptoData crypto) {
+        LoggerUtil.debug(PortfolioUIBuilder.class, "Adding cryptocurrency to table: " + crypto.symbol);
+        
         Object[] rowData = {
             crypto.symbol.toUpperCase(),                // Code
             crypto.name,                                // Name
