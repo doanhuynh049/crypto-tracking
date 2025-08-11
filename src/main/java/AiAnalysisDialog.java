@@ -144,6 +144,17 @@ public class AiAnalysisDialog {
         leftInfo.add(priceLabel);
         leftInfo.add(holdingsLabel);
         
+        // Center - Cache status
+        JPanel centerInfo = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
+        centerInfo.setBackground(new Color(248, 249, 250));
+        
+        String cacheInfo = AiResponseCache.getCacheInfo(crypto.symbol);
+        JLabel cacheLabel = new JLabel("🔄 " + cacheInfo);
+        cacheLabel.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        cacheLabel.setForeground(new Color(108, 117, 125));
+        
+        centerInfo.add(cacheLabel);
+        
         // Right side - P&L
         JPanel rightInfo = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
         rightInfo.setBackground(new Color(248, 249, 250));
@@ -160,6 +171,7 @@ public class AiAnalysisDialog {
         rightInfo.add(plLabel);
         
         headerPanel.add(leftInfo, BorderLayout.WEST);
+        headerPanel.add(centerInfo, BorderLayout.CENTER);
         headerPanel.add(rightInfo, BorderLayout.EAST);
         
         return headerPanel;
@@ -196,13 +208,16 @@ public class AiAnalysisDialog {
         buttonPanel.setBackground(SURFACE_COLOR);
         
         JButton refreshButton = createModernButton("🔄 Refresh Analysis", PRIMARY_COLOR);
+        JButton forceRefreshButton = createModernButton("⚡ Force Fresh AI", new Color(255, 152, 0));
         JButton closeButton = createModernButton("✅ Close", new Color(108, 117, 125));
         
         // Setup button event handlers
-        refreshButton.addActionListener(e -> refreshAnalysis());
+        refreshButton.addActionListener(e -> refreshAnalysis(false));
+        forceRefreshButton.addActionListener(e -> refreshAnalysis(true));
         closeButton.addActionListener(e -> closeDialog());
         
         buttonPanel.add(refreshButton);
+        buttonPanel.add(forceRefreshButton);
         buttonPanel.add(closeButton);
         
         return buttonPanel;
@@ -254,14 +269,15 @@ public class AiAnalysisDialog {
     
     /**
      * Refresh the AI analysis
+     * @param forceRefresh True to bypass cache and get fresh AI response
      */
-    private void refreshAnalysis() {
-        LoggerUtil.info(AiAnalysisDialog.class, "Refreshing AI analysis for " + crypto.symbol);
+    private void refreshAnalysis(boolean forceRefresh) {
+        LoggerUtil.info(AiAnalysisDialog.class, "Refreshing AI analysis for " + crypto.symbol + (forceRefresh ? " (forced refresh)" : ""));
         
         // Get the analysis pane
         JTextPane analysisPane = getAnalysisPane();
         if (analysisPane != null) {
-            analysisPane.setText(createRefreshingHTML());
+            analysisPane.setText(createRefreshingHTML(forceRefresh));
         }
         
         // Generate new analysis in background
@@ -269,7 +285,7 @@ public class AiAnalysisDialog {
             @Override
             protected String doInBackground() throws Exception {
                 LoggerUtil.debug(AiAnalysisDialog.class, "Generating AI analysis for " + crypto.symbol);
-                return AiAdviceService.getDetailedAnalysis(crypto);
+                return AiAdviceService.getDetailedAnalysis(crypto, forceRefresh);
             }
             
             @Override
@@ -314,7 +330,7 @@ public class AiAnalysisDialog {
             @Override
             protected String doInBackground() throws Exception {
                 LoggerUtil.debug(AiAnalysisDialog.class, "Generating initial AI analysis for " + crypto.symbol);
-                return AiAdviceService.getDetailedAnalysis(crypto);
+                return AiAdviceService.getDetailedAnalysis(crypto, false); // Use cache by default
             }
             
             @Override
@@ -548,58 +564,56 @@ public class AiAnalysisDialog {
     }
     
     /**
-     * Create refreshing HTML content
+     * Create HTML refreshing content
      */
-    private String createRefreshingHTML() {
+    private String createRefreshingHTML(boolean forceRefresh) {
+        String refreshType = forceRefresh ? "Fresh AI Analysis" : "Refreshing Analysis";
+        String description = forceRefresh ? 
+            "Bypassing cache to get the latest AI insights..." : 
+            "Checking for updates and latest analysis...";
+            
         return "<html><body style='font-family: Segoe UI, Arial, sans-serif; padding: 20px; background-color: white;'>" +
                "<div style='text-align: center; margin-bottom: 30px;'>" +
-               "<h2 style='color: #FF9800; margin-bottom: 10px;'>🔄 Refreshing Analysis</h2>" +
-               "<div style='background: linear-gradient(90deg, #FFE0B2, #FFCC02, #FFE0B2); height: 4px; border-radius: 2px; margin: 10px 0;'></div>" +
+               "<h2 style='color: #FF9800; margin-bottom: 10px;'>🔄 " + refreshType + "</h2>" +
+               "<div style='background: linear-gradient(90deg, #FFE0B2, #FFCC80, #FFE0B2); height: 4px; border-radius: 2px; margin: 10px 0;'></div>" +
                "</div>" +
-               "<div style='text-align: center; padding: 40px; background-color: #FFF3E0; border-radius: 12px; border: 2px dashed #FF9800;'>" +
-               "<div style='font-size: 48px; margin-bottom: 20px;'>🔄</div>" +
-               "<h3 style='color: #FF9800; margin-bottom: 15px;'>Updating " + crypto.name + " Analysis</h3>" +
-               "<p style='color: #6C757D; font-size: 14px; line-height: 1.6;'>" +
-               "Fetching latest market data and generating<br>updated investment recommendations..." +
+               "<div style='text-align: center; padding: 40px; background-color: #FFF8E1; border-radius: 12px; border: 2px dashed #FF9800;'>" +
+               "<div style='font-size: 48px; margin-bottom: 20px;'>⚡</div>" +
+               "<h3 style='color: #FF9800; margin-bottom: 15px;'>Updating " + crypto.name + "</h3>" +
+               "<p style='color: #F57C00; font-size: 14px; line-height: 1.6;'>" +
+               description +
                "</p>" +
+               "<div style='margin-top: 20px;'>" +
+               "<div style='background: #FF9800; height: 3px; border-radius: 2px; animation: pulse 2s infinite;'></div>" +
+               "</div>" +
                "</div>" +
                "</body></html>";
     }
-    
+
     /**
      * Create error HTML content
      */
     private String createErrorHTML(String errorMessage) {
-        // Check if this is actually a rule-based analysis (not a real error)
-        if (errorMessage.contains("📊 PORTFOLIO ANALYSIS FOR")) {
-            // This is our enhanced rule-based analysis, format it nicely
-            return convertAnalysisToHTML(errorMessage);
-        }
-        
-        // This is a real error, show error UI
         return "<html><body style='font-family: Segoe UI, Arial, sans-serif; padding: 20px; background-color: white;'>" +
                "<div style='text-align: center; margin-bottom: 30px;'>" +
-               "<h2 style='color: #DC3545; margin-bottom: 10px;'>⚠️ Analysis Unavailable</h2>" +
-               "<div style='background: linear-gradient(90deg, #F8D7DA, #DC3545, #F8D7DA); height: 4px; border-radius: 2px; margin: 10px 0;'></div>" +
+               "<h2 style='color: #F44336; margin-bottom: 10px;'>❌ Analysis Error</h2>" +
+               "<div style='background: linear-gradient(90deg, #FFEBEE, #FFCDD2, #FFEBEE); height: 4px; border-radius: 2px; margin: 10px 0;'></div>" +
                "</div>" +
-               "<div style='padding: 30px; background-color: #F8D7DA; border-radius: 12px; border: 2px solid #DC3545; margin-bottom: 20px;'>" +
-               "<div style='text-align: center; font-size: 48px; margin-bottom: 20px;'>❌</div>" +
-               "<h3 style='color: #721C24; text-align: center; margin-bottom: 15px;'>Service Temporarily Unavailable</h3>" +
-               "<div style='background-color: white; padding: 20px; border-radius: 8px; margin: 15px 0;'>" +
-               "<p style='color: #721C24; margin: 0; text-align: center;'>" + errorMessage + "</p>" +
+               "<div style='text-align: center; padding: 40px; background-color: #FFEBEE; border-radius: 12px; border: 2px solid #F44336;'>" +
+               "<div style='font-size: 48px; margin-bottom: 20px;'>⚠️</div>" +
+               "<h3 style='color: #F44336; margin-bottom: 15px;'>Unable to Generate Analysis</h3>" +
+               "<p style='color: #D32F2F; font-size: 14px; line-height: 1.6;'>" +
+               errorMessage +
+               "</p>" +
+               "<div style='margin-top: 20px; padding: 15px; background-color: #FFF; border-radius: 8px; border-left: 4px solid #F44336;'>" +
+               "<p style='color: #666; font-size: 12px; margin: 0;'>" +
+               "💡 Try using the \"⚡ Force Fresh AI\" button to bypass the cache and get a new analysis." +
+               "</p>" +
                "</div>" +
-               "</div>" +
-               "<div style='text-align: center; padding: 20px; background-color: #E7F3FF; border-radius: 8px;'>" +
-               "<h4 style='color: #0C5460; margin-bottom: 10px;'>💡 What you can do:</h4>" +
-               "<ul style='color: #0C5460; text-align: left; display: inline-block;'>" +
-               "<li>Click 'Refresh Analysis' to try again</li>" +
-               "<li>Check your internet connection</li>" +
-               "<li>Wait a few minutes and retry</li>" +
-               "</ul>" +
                "</div>" +
                "</body></html>";
     }
-    
+
     /**
      * Create circuit breaker status HTML
      */

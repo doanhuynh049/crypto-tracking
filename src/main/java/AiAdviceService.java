@@ -413,10 +413,32 @@ public class AiAdviceService {
     /**
      * Generate detailed AI analysis for a cryptocurrency
      * @param crypto The cryptocurrency data
-     * @return Detailed analysis string from AI only
+     * @return Detailed analysis string from AI or cache
      */
     public static String getDetailedAnalysis(CryptoData crypto) {
-        LoggerUtil.info("Generating AI analysis for " + crypto.symbol);
+        return getDetailedAnalysis(crypto, false);
+    }
+    
+    /**
+     * Generate detailed AI analysis for a cryptocurrency with cache control
+     * @param crypto The cryptocurrency data
+     * @param forceRefresh True to bypass cache and get fresh AI response
+     * @return Detailed analysis string from AI or cache
+     */
+    public static String getDetailedAnalysis(CryptoData crypto, boolean forceRefresh) {
+        LoggerUtil.info("Generating AI analysis for " + crypto.symbol + (forceRefresh ? " (forced refresh)" : ""));
+        
+        // Check cache first (unless forced refresh)
+        if (!forceRefresh) {
+            String cachedResponse = AiResponseCache.getCachedResponse(crypto.symbol);
+            if (cachedResponse != null) {
+                LoggerUtil.info("Using cached AI analysis for " + crypto.symbol);
+                return cachedResponse;
+            }
+        } else {
+            // Clear cache for forced refresh
+            AiResponseCache.clearCache(crypto.symbol);
+        }
         
         try {
             // Create detailed prompt for AI analysis
@@ -427,7 +449,14 @@ public class AiAdviceService {
             
             if (aiAnalysis != null && !aiAnalysis.trim().isEmpty()) {
                 LoggerUtil.info("Successfully generated AI analysis for " + crypto.symbol);
-                return formatDetailedAnalysis(crypto, aiAnalysis);
+                
+                // Format the analysis
+                String formattedAnalysis = formatDetailedAnalysis(crypto, aiAnalysis);
+                
+                // Cache the successful response
+                AiResponseCache.cacheResponse(crypto.symbol, formattedAnalysis);
+                
+                return formattedAnalysis;
             } else {
                 LoggerUtil.warning("AI returned empty response for " + crypto.symbol);
                 return "AI analysis unavailable at the moment. Please try again.";
