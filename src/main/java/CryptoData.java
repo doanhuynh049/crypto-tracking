@@ -16,10 +16,10 @@ public class CryptoData implements Serializable {
     public double targetPriceLongTerm;
     public double holdings;
     public double avgBuyPrice;
-    public String aiAdvice; // AI-generated three-word advice
-    public boolean isAiGenerated = false; // Track if advice is from AI or rule-based
-    public String aiStatus = "LOADING"; // LOADING, AI_SUCCESS, FALLBACK, ERROR
-    public long lastAiUpdate = 0; // Timestamp of last AI update
+    public transient String aiAdvice; // AI-generated three-word advice (not saved to file)
+    public transient boolean isAiGenerated = false; // Track if advice is from AI or rule-based (not saved to file)
+    public transient String aiStatus = "LOADING"; // LOADING, AI_SUCCESS, FALLBACK, ERROR (not saved to file)
+    public transient long lastAiUpdate = 0; // Timestamp of last AI update (not saved to file)
     
     // Constructor with all fields including expected entry
     public CryptoData(String id, String name, String symbol, double currentPrice, double expectedPrice, 
@@ -35,7 +35,8 @@ public class CryptoData implements Serializable {
         this.targetPriceLongTerm = targetPriceLongTerm;
         this.holdings = holdings;
         this.avgBuyPrice = avgBuyPrice;
-        this.aiAdvice = "Loading..."; // Default value
+        // Initialize transient AI fields
+        initializeAiFields();
     }
     
     // Legacy constructor for backward compatibility
@@ -51,7 +52,8 @@ public class CryptoData implements Serializable {
         this.targetPriceLongTerm = expectedPrice;
         this.holdings = holdings;
         this.avgBuyPrice = avgBuyPrice;
-        this.aiAdvice = "Loading..."; // Default value
+        // Initialize transient AI fields
+        initializeAiFields();
     }
     
     // Constructor with target fields but without expected entry
@@ -67,7 +69,8 @@ public class CryptoData implements Serializable {
         this.targetPriceLongTerm = targetPriceLongTerm;
         this.holdings = holdings;
         this.avgBuyPrice = avgBuyPrice;
-        this.aiAdvice = "Loading..."; // Default value
+        // Initialize transient AI fields
+        initializeAiFields();
     }
     
     /**

@@ -2,6 +2,8 @@ import javax.swing.*;
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
@@ -18,6 +20,9 @@ public class PortfolioDataManager {
     private List<CryptoData> cryptoList;
     private static final String DATA_FILE = "src/data/.portfolio_data.bin"; // Hidden binary file for security
     private boolean isUpdatingTable = false; // Flag to prevent infinite recursion
+    
+    // Data comparison for conditional saving
+    private String lastSavedDataHash = null; // Hash of last saved data to prevent unnecessary saves
     
     // Reference to UI builder for updates
     private PortfolioUIBuilder uiBuilder;
@@ -183,22 +188,10 @@ public class PortfolioDataManager {
     private void initializeCryptoList() {
         cryptoList = new ArrayList<>();
         // Initialize with popular cryptocurrencies with sample holdings
-        cryptoList.add(new CryptoData("bitcoin", "Bitcoin", "BTC", 0.0, 50000.0, 45000.0, 55000.0, 80000.0, 0.0, 0.0));
-        cryptoList.add(new CryptoData("ethereum", "Ethereum", "ETH", 0.0, 3000.0, 2700.0, 3500.0, 5000.0, 0.0, 0.0));
-        cryptoList.add(new CryptoData("binancecoin", "Binance Coin", "BNB", 0.0, 400.0, 360.0, 450.0, 600.0, 0.0, 0.0));
-        cryptoList.add(new CryptoData("cardano", "Cardano", "ADA", 0.0, 1.0, 0.9, 1.2, 2.0, 0.0, 0.0));
-        cryptoList.add(new CryptoData("solana", "Solana", "SOL", 0.0, 100.0, 90.0, 120.0, 200.0, 0.0, 0.0));
-        cryptoList.add(new CryptoData("dogecoin", "Dogecoin", "DOGE", 0.0, 0.25, 0.22, 0.30, 0.50, 0.0, 0.0));
-        cryptoList.add(new CryptoData("polkadot", "Polkadot", "DOT", 0.0, 25.0, 22.5, 30.0, 50.0, 0.0, 0.0));
-        cryptoList.add(new CryptoData("chainlink", "Chainlink", "LINK", 0.0, 20.0, 18.0, 25.0, 40.0, 0.0, 0.0));
+        cryptoList.add(new CryptoData("bitcoin", "Bitcoin", "BTC", 0.0, 50000.0, 45000.0, 55000.0, 80000.0, 0.0, 0.0));     
+        // AI fields are automatically initialized in constructors (transient data)
         
-        // Set initial AI status to LOADING for all cryptocurrencies
-        for (CryptoData crypto : cryptoList) {
-            crypto.aiStatus = "LOADING";
-            crypto.aiAdvice = "Loading...";
-        }
-        
-        savePortfolioData(); // Save initial data
+        forceSavePortfolioData(); // Force save initial data (always save on first setup)
     }
     
     /**
@@ -209,12 +202,7 @@ public class PortfolioDataManager {
             // Sort by total value before displaying
             sortCryptosByTotalValue();
             
-            // Reset all cryptocurrencies to LOADING state for a fresh start
-            for (CryptoData crypto : cryptoList) {
-                crypto.aiStatus = "LOADING";
-                crypto.aiAdvice = "Loading...";
-                crypto.isAiGenerated = false;
-            }
+            // AI fields are automatically initialized in constructors/loading (transient data)
             
             if (uiBuilder != null) {
                 uiBuilder.getTableModel().setRowCount(0);
@@ -643,6 +631,54 @@ public class PortfolioDataManager {
     }
     
     /**
+     * Calculate hash of current portfolio data for comparison
+     * Only includes persistent data (excludes transient AI fields)
+     */
+    private String calculateDataHash() {
+        try {
+            StringBuilder dataString = new StringBuilder();
+            
+            // Sort the list by ID to ensure consistent ordering for hashing
+            List<CryptoData> sortedList = new ArrayList<>(cryptoList);
+            sortedList.sort((c1, c2) -> c1.id.compareTo(c2.id));
+            
+            for (CryptoData crypto : sortedList) {
+                // Only include persistent data fields (exclude transient AI fields and current price)
+                dataString.append(crypto.id).append("|")
+                          .append(crypto.name).append("|")
+                          .append(crypto.symbol).append("|")
+                          .append(crypto.expectedPrice).append("|")
+                          .append(crypto.expectedEntry).append("|")
+                          .append(crypto.targetPrice3Month).append("|")
+                          .append(crypto.targetPriceLongTerm).append("|")
+                          .append(crypto.holdings).append("|")
+                          .append(crypto.avgBuyPrice).append("|");
+            }
+            
+            // Calculate SHA-256 hash
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hashBytes = digest.digest(dataString.toString().getBytes());
+            
+            // Convert to hex string
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : hashBytes) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) {
+                    hexString.append('0');
+                }
+                hexString.append(hex);
+            }
+            
+            return hexString.toString();
+            
+        } catch (NoSuchAlgorithmException e) {
+            LoggerUtil.error(PortfolioDataManager.class, "SHA-256 algorithm not available", e);
+            // Fallback: use timestamp (will always save)
+            return String.valueOf(System.currentTimeMillis());
+        }
+    }
+    
+    /**
      * Save portfolio data to file
      */
     public void savePortfolioData() {
@@ -651,15 +687,39 @@ public class PortfolioDataManager {
     }
     
     /**
+     * Force save portfolio data without comparison (for initial setup or critical saves)
+     */
+    public void forceSavePortfolioData() {
+        // Temporarily clear the hash to force save
+        String originalHash = lastSavedDataHash;
+        lastSavedDataHash = null;
+        savePortfolioDataPrivate();
+        // Don't restore the original hash - let the save method set the new one
+    }
+    
+    /**
      * Save portfolio data - internal method
      */
     private void savePortfolioDataPrivate() {
-        LoggerUtil.debug(PortfolioDataManager.class, "Saving portfolio data to file");
+        // Calculate hash of current data
+        String currentDataHash = calculateDataHash();
+        
+        // Compare with last saved hash to avoid unnecessary saves
+        if (currentDataHash.equals(lastSavedDataHash)) {
+            LoggerUtil.debug(PortfolioDataManager.class, "Portfolio data unchanged, skipping save operation");
+            return;
+        }
+        
+        LoggerUtil.debug(PortfolioDataManager.class, "Portfolio data changed, proceeding with save operation");
         
         try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(DATA_FILE))) {
             oos.writeObject(cryptoList);
             // Also save as properties backup for compatibility
             savePortfolioDataAsProperties();
+            
+            // Update the last saved hash after successful save
+            lastSavedDataHash = currentDataHash;
+            
             LoggerUtil.info(PortfolioDataManager.class, 
                 String.format("Portfolio data saved successfully (%d cryptocurrencies)", cryptoList.size()));
         } catch (IOException e) {
@@ -688,7 +748,7 @@ public class PortfolioDataManager {
                 props.setProperty(prefix + "targetPriceLongTerm", String.valueOf(crypto.targetPriceLongTerm));
                 props.setProperty(prefix + "holdings", String.valueOf(crypto.holdings));
                 props.setProperty(prefix + "avgBuyPrice", String.valueOf(crypto.avgBuyPrice));
-                props.setProperty(prefix + "aiAdvice", crypto.aiAdvice != null ? crypto.aiAdvice : "Loading...");
+                // Note: AI advice is not saved (transient data)
             }
             
             props.store(output, "Crypto Portfolio Data Backup");
@@ -720,6 +780,10 @@ public class PortfolioDataManager {
                 for (CryptoData crypto : cryptoList) {
                     crypto.initializeAiFields();
                 }
+                
+                // Calculate and store hash of loaded data for comparison
+                lastSavedDataHash = calculateDataHash();
+                
                 LoggerUtil.info(PortfolioDataManager.class, 
                     String.format("Successfully loaded %d cryptocurrencies from portfolio data file", cryptoList.size()));
             }
@@ -761,7 +825,7 @@ public class PortfolioDataManager {
                 String targetPriceLongTermStr = props.getProperty(prefix + "targetPriceLongTerm");
                 String holdingsStr = props.getProperty(prefix + "holdings");
                 String avgBuyPriceStr = props.getProperty(prefix + "avgBuyPrice");
-                String aiAdviceStr = props.getProperty(prefix + "aiAdvice");
+                // Note: AI advice is no longer loaded from properties (transient data)
                 
                 if (id != null && name != null && symbol != null && 
                     expectedPriceStr != null && holdingsStr != null && avgBuyPriceStr != null) {
@@ -774,10 +838,14 @@ public class PortfolioDataManager {
                     double avgBuyPrice = Double.parseDouble(avgBuyPriceStr);
                     
                     CryptoData crypto = new CryptoData(id, name, symbol, 0.0, expectedPrice, expectedEntry, targetPrice3Month, targetPriceLongTerm, holdings, avgBuyPrice);
-                    crypto.setAiAdvice(aiAdviceStr != null ? aiAdviceStr : "Loading...");
-                    crypto.initializeAiFields(); // Ensure AI fields are properly initialized
+                    // AI fields are automatically initialized in constructor (transient data)
                     cryptoList.add(crypto);
                 }
+            }
+            
+            // Calculate and store hash of loaded data for comparison
+            if (!cryptoList.isEmpty()) {
+                lastSavedDataHash = calculateDataHash();
             }
             
         } catch (IOException | NumberFormatException e) {
@@ -820,14 +888,18 @@ public class PortfolioDataManager {
                     double avgBuyPrice = Double.parseDouble(avgBuyPriceStr);
                     
                     CryptoData crypto = new CryptoData(id, name, symbol, 0.0, expectedPrice, expectedEntry, targetPrice3Month, targetPriceLongTerm, holdings, avgBuyPrice);
-                    crypto.setAiAdvice("Loading..."); // Set default for old files
-                    crypto.initializeAiFields(); // Ensure AI fields are properly initialized
+                    // AI fields are automatically initialized in constructor (transient data)
                     cryptoList.add(crypto);
                 }
             }
             
-            // Save to binary format and delete old file
-            savePortfolioData();
+            // Calculate and store hash before saving (since forceSavePortfolioData will be called)
+            if (!cryptoList.isEmpty()) {
+                lastSavedDataHash = calculateDataHash();
+            }
+            
+            // Force save to binary format and delete old file (migration scenario)
+            forceSavePortfolioData();
             oldFile.delete();
             
         } catch (IOException | NumberFormatException e) {
