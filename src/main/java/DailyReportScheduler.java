@@ -41,9 +41,9 @@ public class DailyReportScheduler {
         dataManager = portfolioDataManager;
         mainFrame = applicationFrame;
         
-        // Check if email is configured
-        if (!EmailService.isConfigured()) {
-            LoggerUtil.warning(DailyReportScheduler.class, "Email service not configured. Daily reports will not be sent.");
+        // Check if email service is available
+        if (!EmailService.isAvailable()) {
+            LoggerUtil.warning(DailyReportScheduler.class, "Email service not available. Daily reports will not be sent.");
             return;
         }
         
@@ -159,9 +159,9 @@ public class DailyReportScheduler {
         try {
             LoggerUtil.info(DailyReportScheduler.class, "Executing daily report generation");
             
-            // Check if email is still configured
-            if (!EmailService.isConfigured()) {
-                LoggerUtil.error(DailyReportScheduler.class, "Email service not configured. Cannot send daily report.");
+            // Check if email service is available
+            if (!EmailService.isAvailable()) {
+                LoggerUtil.error(DailyReportScheduler.class, "Email service not available. Cannot send daily report.");
                 return;
             }
             
@@ -264,9 +264,9 @@ public class DailyReportScheduler {
         LoggerUtil.info(DailyReportScheduler.class, "Testing daily report system");
         
         try {
-            // Check email configuration
-            if (!EmailService.isConfigured()) {
-                LoggerUtil.error(DailyReportScheduler.class, "Test failed: Email service not configured");
+            // Check email service availability
+            if (!EmailService.isAvailable()) {
+                LoggerUtil.error(DailyReportScheduler.class, "Test failed: Email service not available");
                 return false;
             }
             
@@ -308,7 +308,7 @@ public class DailyReportScheduler {
     public static SchedulerStatus getSchedulerStatus() {
         return new SchedulerStatus(
             isScheduled,
-            EmailService.isConfigured(),
+            EmailService.isAvailable(),
             dataManager != null,
             mainFrame != null,
             getTimeUntilNextReport()

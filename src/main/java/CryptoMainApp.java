@@ -464,14 +464,9 @@ public class CryptoMainApp extends JFrame {
         contentPanel.setLayout(new BoxLayout(contentPanel, BoxLayout.Y_AXIS));
         contentPanel.setBackground(BACKGROUND_COLOR);
         
-        // Email Configuration Section
-        JPanel emailSection = createEmailConfigurationSection();
-        contentPanel.add(emailSection);
-        contentPanel.add(Box.createVerticalStrut(20));
-        
-        // Daily Report Section
-        JPanel reportSection = createDailyReportSection();
-        contentPanel.add(reportSection);
+        // Email & Daily Reports Section (Combined)
+        JPanel emailReportsSection = createEmailAndReportsSection();
+        contentPanel.add(emailReportsSection);
         contentPanel.add(Box.createVerticalStrut(20));
         
         // Application Settings Section
@@ -485,66 +480,37 @@ public class CryptoMainApp extends JFrame {
     }
     
     /**
-     * Create email configuration section
+     * Create combined email and daily reports section
      */
-    private JPanel createEmailConfigurationSection() {
-        JPanel section = createSettingsSection("📧 Email Configuration", 
-            "Configure email settings for daily portfolio reports");
+    private JPanel createEmailAndReportsSection() {
+        JPanel section = createSettingsSection("📧 Email Service & Daily Reports", 
+            "Email service is pre-configured for automated daily portfolio reports (sent at 7:00 AM)");
         
         JPanel contentPanel = new JPanel();
         contentPanel.setLayout(new BoxLayout(contentPanel, BoxLayout.Y_AXIS));
         contentPanel.setBackground(SURFACE_COLOR);
         contentPanel.setBorder(new EmptyBorder(20, 20, 20, 20));
         
-        // From Email field
-        JPanel fromEmailPanel = createFieldPanel("From Email:", "your-email@gmail.com");
-        JTextField fromEmailField = (JTextField) fromEmailPanel.getComponent(1);
+        // Combined status display
+        JLabel statusLabel = new JLabel();
+        statusLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        updateCombinedStatus(statusLabel);
         
-        // App Password field
-        JPanel passwordPanel = createFieldPanel("App Password:", "your-app-password");
-        JPasswordField passwordField = new JPasswordField(20);
-        passwordPanel.remove(1);
-        passwordPanel.add(passwordField);
-        styleTextField(passwordField);
-        
-        // To Email field
-        JPanel toEmailPanel = createFieldPanel("To Email:", "recipient@gmail.com");
-        JTextField toEmailField = (JTextField) toEmailPanel.getComponent(1);
-        
-        // Buttons
+        // Buttons section
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 10));
         buttonPanel.setBackground(SURFACE_COLOR);
         
-        JButton saveButton = createModernButton("💾 Save Configuration", SUCCESS_COLOR);
-        JButton testButton = createModernButton("📧 Send Test Email", PRIMARY_COLOR);
+        JButton testEmailButton = createModernButton("📧 Send Test Email", PRIMARY_COLOR);
+        JButton testReportButton = createModernButton("📊 Send Test Report", new Color(255, 152, 0));
+        JButton testSystemButton = createModernButton("🔧 Test System", new Color(156, 39, 176));
+        JButton refreshButton = createModernButton("🔄 Refresh Status", new Color(96, 125, 139));
         
-        saveButton.addActionListener(e -> {
-            String fromEmail = fromEmailField.getText().trim();
-            String password = new String(passwordField.getPassword()).trim();
-            String toEmail = toEmailField.getText().trim();
-            
-            if (fromEmail.isEmpty() || password.isEmpty() || toEmail.isEmpty()) {
+        // Button actions
+        testEmailButton.addActionListener(e -> {
+            if (!EmailService.isAvailable()) {
                 JOptionPane.showMessageDialog(this, 
-                    "Please fill in all email fields.", 
-                    "Validation Error", 
-                    JOptionPane.ERROR_MESSAGE);
-                return;
-            }
-            
-            EmailService.configureEmail(fromEmail, password, toEmail);
-            JOptionPane.showMessageDialog(this, 
-                "Email configuration saved successfully!", 
-                "Success", 
-                JOptionPane.INFORMATION_MESSAGE);
-            
-            LoggerUtil.info(CryptoMainApp.class, "Email configuration updated");
-        });
-        
-        testButton.addActionListener(e -> {
-            if (!EmailService.isConfigured()) {
-                JOptionPane.showMessageDialog(this, 
-                    "Please configure email settings first.", 
-                    "Configuration Required", 
+                    "Email service is currently unavailable.", 
+                    "Service Unavailable", 
                     JOptionPane.WARNING_MESSAGE);
                 return;
             }
@@ -557,58 +523,17 @@ public class CryptoMainApp extends JFrame {
                     JOptionPane.INFORMATION_MESSAGE);
             } else {
                 JOptionPane.showMessageDialog(this, 
-                    "Failed to send test email. Please check your configuration.", 
+                    "Failed to send test email. Please check the logs for details.", 
                     "Test Failed", 
                     JOptionPane.ERROR_MESSAGE);
             }
         });
         
-        buttonPanel.add(saveButton);
-        buttonPanel.add(Box.createHorizontalStrut(10));
-        buttonPanel.add(testButton);
-        
-        contentPanel.add(fromEmailPanel);
-        contentPanel.add(Box.createVerticalStrut(10));
-        contentPanel.add(passwordPanel);
-        contentPanel.add(Box.createVerticalStrut(10));
-        contentPanel.add(toEmailPanel);
-        contentPanel.add(Box.createVerticalStrut(15));
-        contentPanel.add(buttonPanel);
-        
-        section.add(contentPanel, BorderLayout.CENTER);
-        return section;
-    }
-    
-    /**
-     * Create daily report section
-     */
-    private JPanel createDailyReportSection() {
-        JPanel section = createSettingsSection("📊 Daily Reports", 
-            "Manage automated daily portfolio reports (sent at 7:00 AM)");
-        
-        JPanel contentPanel = new JPanel();
-        contentPanel.setLayout(new BoxLayout(contentPanel, BoxLayout.Y_AXIS));
-        contentPanel.setBackground(SURFACE_COLOR);
-        contentPanel.setBorder(new EmptyBorder(20, 20, 20, 20));
-        
-        // Status display
-        JLabel statusLabel = new JLabel();
-        statusLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
-        updateDailyReportStatus(statusLabel);
-        
-        // Buttons
-        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 10));
-        buttonPanel.setBackground(SURFACE_COLOR);
-        
-        JButton testReportButton = createModernButton("📧 Send Test Report", PRIMARY_COLOR);
-        JButton testSystemButton = createModernButton("🔧 Test System", new Color(255, 152, 0));
-        JButton refreshStatusButton = createModernButton("🔄 Refresh Status", new Color(96, 125, 139));
-        
         testReportButton.addActionListener(e -> {
-            if (!EmailService.isConfigured()) {
+            if (!EmailService.isAvailable()) {
                 JOptionPane.showMessageDialog(this, 
-                    "Please configure email settings first.", 
-                    "Configuration Required", 
+                    "Email service is currently unavailable.", 
+                    "Service Unavailable", 
                     JOptionPane.WARNING_MESSAGE);
                 return;
             }
@@ -636,13 +561,16 @@ public class CryptoMainApp extends JFrame {
             }
         });
         
-        refreshStatusButton.addActionListener(e -> updateDailyReportStatus(statusLabel));
+        refreshButton.addActionListener(e -> updateCombinedStatus(statusLabel));
         
+        // Add buttons to panel
+        buttonPanel.add(testEmailButton);
+        buttonPanel.add(Box.createHorizontalStrut(10));
         buttonPanel.add(testReportButton);
         buttonPanel.add(Box.createHorizontalStrut(10));
         buttonPanel.add(testSystemButton);
         buttonPanel.add(Box.createHorizontalStrut(10));
-        buttonPanel.add(refreshStatusButton);
+        buttonPanel.add(refreshButton);
         
         contentPanel.add(statusLabel);
         contentPanel.add(Box.createVerticalStrut(15));
@@ -652,6 +580,31 @@ public class CryptoMainApp extends JFrame {
         return section;
     }
     
+    /**
+     * Update combined email and daily reports status display
+     */
+    private void updateCombinedStatus(JLabel statusLabel) {
+        boolean isEmailAvailable = EmailService.isAvailable();
+        DailyReportScheduler.SchedulerStatus schedulerStatus = DailyReportScheduler.getSchedulerStatus();
+        
+        String statusText = "<html><div style='font-family: Segoe UI; font-size: 12px;'>";
+        statusText += "<b>📧 Email Service:</b> " + (isEmailAvailable ? "✅ Available" : "❌ Unavailable") + "<br/>";
+        statusText += "<b>🔧 Configuration:</b> ✅ Pre-configured<br/>";
+        statusText += "<b>📊 Scheduler Status:</b> " + (schedulerStatus.isScheduled ? "✅ Active" : "❌ Inactive") + "<br/>";
+        statusText += "<b>📈 Data Available:</b> " + (schedulerStatus.dataManagerAvailable ? "✅ Yes" : "❌ No") + "<br/>";
+        statusText += "<b>⏰ Next Report:</b> " + schedulerStatus.timeUntilNextReport + "<br/>";
+        statusText += "<b>🎯 Daily Reports:</b> " + (isEmailAvailable && schedulerStatus.isScheduled ? "✅ Ready" : "❌ Disabled") + "<br/>";
+        statusText += "</div></html>";
+        
+        statusLabel.setText(statusText);
+        
+        if (isEmailAvailable && schedulerStatus.isScheduled) {
+            statusLabel.setForeground(SUCCESS_COLOR);
+        } else {
+            statusLabel.setForeground(DANGER_COLOR);
+        }
+    }
+
     /**
      * Create application settings section
      */
@@ -807,7 +760,7 @@ public class CryptoMainApp extends JFrame {
         
         String statusText = "<html><div style='font-family: Segoe UI; font-size: 12px;'>";
         statusText += "<b>Scheduler Status:</b> " + (status.isScheduled ? "✅ Active" : "❌ Inactive") + "<br/>";
-        statusText += "<b>Email Configured:</b> " + (status.emailConfigured ? "✅ Yes" : "❌ No") + "<br/>";
+        statusText += "<b>Email Service:</b> " + (status.emailConfigured ? "✅ Available" : "❌ Unavailable") + "<br/>";
         statusText += "<b>Data Available:</b> " + (status.dataManagerAvailable ? "✅ Yes" : "❌ No") + "<br/>";
         statusText += "<b>Next Report:</b> " + status.timeUntilNextReport + "<br/>";
         statusText += "</div></html>";
