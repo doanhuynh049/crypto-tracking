@@ -779,7 +779,7 @@ public class PortfolioDataManager {
             return;
         }
         
-        try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(file))) {
+        try (MigrationObjectInputStream ois = new MigrationObjectInputStream(new FileInputStream(file))) {
             Object obj = ois.readObject();
             if (obj instanceof List<?>) {
                 cryptoList = (List<CryptoData>) obj;
@@ -793,6 +793,10 @@ public class PortfolioDataManager {
                 
                 LoggerUtil.info(PortfolioDataManager.class, 
                     String.format("Successfully loaded %d cryptocurrencies from portfolio data file", cryptoList.size()));
+                    
+                // Force save to update the binary file with new class names
+                LoggerUtil.info(PortfolioDataManager.class, "Migrating data file to new package structure");
+                forceSavePortfolioData();
             }
         } catch (IOException | ClassNotFoundException e) {
             LoggerUtil.error(PortfolioDataManager.class, "Error loading portfolio data from binary file", e);
@@ -912,6 +916,34 @@ public class PortfolioDataManager {
         } catch (IOException | NumberFormatException e) {
             System.err.println("Error loading old portfolio data: " + e.getMessage());
             cryptoList = new ArrayList<>();
+        }
+    }
+    
+    /**
+     * Custom ObjectInputStream that handles class name migrations due to package reorganization
+     */
+    private static class MigrationObjectInputStream extends ObjectInputStream {
+        
+        public MigrationObjectInputStream(InputStream in) throws IOException {
+            super(in);
+        }
+        
+        @Override
+        protected Class<?> resolveClass(ObjectStreamClass desc) throws IOException, ClassNotFoundException {
+            String className = desc.getName();
+            
+            // Handle migration from old package structure to new package structure
+            switch (className) {
+                case "CryptoData":
+                    LoggerUtil.info(PortfolioDataManager.class, "Migrating CryptoData class from root package to model package");
+                    return Class.forName("model.CryptoData");
+                case "PortfolioRebalanceRecommendation":
+                    LoggerUtil.info(PortfolioDataManager.class, "Migrating PortfolioRebalanceRecommendation class to model package");
+                    return Class.forName("model.PortfolioRebalanceRecommendation");
+                default:
+                    // For all other classes, use the default behavior
+                    return super.resolveClass(desc);
+            }
         }
     }
 }
