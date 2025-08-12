@@ -86,8 +86,9 @@ public class CryptoMainApp extends JFrame {
     private void initializeNavigationItems() {
         LoggerUtil.debug(CryptoMainApp.class, "Initializing navigation items");
         navigationItems = new ArrayList<>();
+        navigationItems.add(new NavigationItem("📊", "Portfolio Overview", "Portfolio allocation and AI-powered rebalancing"));
         navigationItems.add(new NavigationItem("💰", "My Portfolio", "View and manage your crypto portfolio"));
-        navigationItems.add(new NavigationItem("📊", "Market Overview", "Real-time market data and trends"));
+        navigationItems.add(new NavigationItem("📈", "Market Overview", "Real-time market data and trends"));
         navigationItems.add(new NavigationItem("📈", "Trading View", "Advanced trading charts and analysis"));
         navigationItems.add(new NavigationItem("🎯", "Watchlist", "Track your favorite cryptocurrencies"));
         navigationItems.add(new NavigationItem("📰", "News & Updates", "Latest crypto news and market updates"));
@@ -332,6 +333,9 @@ public class CryptoMainApp extends JFrame {
                 case "My Portfolio":
                     currentContentPanel = createPortfolioContent();
                     break;
+                case "Portfolio Overview":
+                    currentContentPanel = createPortfolioOverviewContent();
+                    break;
                 case "Market Overview":
                     currentContentPanel = createMarketOverviewContent();
                     break;
@@ -408,6 +412,49 @@ public class CryptoMainApp extends JFrame {
         } catch (Exception e) {
             LoggerUtil.error(CryptoMainApp.class, "Failed to create portfolio content", e);
             return createErrorContent("Failed to load portfolio");
+        }
+    }
+    
+    private JPanel createPortfolioOverviewContent() {
+        LoggerUtil.debug(CryptoMainApp.class, "Creating portfolio overview content panel");
+        
+        try {
+            JPanel overviewPanel = new JPanel(new BorderLayout());
+            overviewPanel.setBackground(BACKGROUND_COLOR);
+            
+            // Create header for overview section
+            JPanel headerPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+            headerPanel.setBackground(BACKGROUND_COLOR);
+            headerPanel.setBorder(new EmptyBorder(20, 20, 10, 20));
+            
+            JLabel headerLabel = new JLabel("📊 Portfolio Overview");
+            headerLabel.setFont(new Font("Segoe UI", Font.BOLD, 24));
+            headerLabel.setForeground(TEXT_PRIMARY);
+            
+            headerPanel.add(headerLabel);
+            overviewPanel.add(headerPanel, BorderLayout.NORTH);
+            
+            // Create container for the overview content
+            JPanel contentContainer = new JPanel(new BorderLayout());
+            contentContainer.setBackground(BACKGROUND_COLOR);
+            contentContainer.setBorder(new EmptyBorder(0, 20, 20, 20));
+            
+            // Get portfolio data manager from the existing portfolio content
+            // We need to access the data manager from portfolio content
+            PortfolioContentPanel portfolioContent = new PortfolioContentPanel();
+            PortfolioDataManager dataManager = portfolioContent.getDataManager();
+            
+            // Create the portfolio overview panel
+            PortfolioOverviewPanel overviewContent = new PortfolioOverviewPanel(dataManager);
+            contentContainer.add(overviewContent, BorderLayout.CENTER);
+            
+            overviewPanel.add(contentContainer, BorderLayout.CENTER);
+            
+            LoggerUtil.info(CryptoMainApp.class, "Portfolio overview content panel created successfully");
+            return overviewPanel;
+        } catch (Exception e) {
+            LoggerUtil.error(CryptoMainApp.class, "Failed to create portfolio overview content", e);
+            return createErrorContent("Failed to load portfolio overview");
         }
     }
     
