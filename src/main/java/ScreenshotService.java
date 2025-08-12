@@ -39,25 +39,44 @@ public class ScreenshotService {
         try {
             LoggerUtil.info(ScreenshotService.class, "Capturing portfolio screenshot");
             
-            // Ensure the frame is visible and fully rendered
+            // Ensure the frame is visible and properly rendered
             if (!mainFrame.isVisible()) {
                 LoggerUtil.warning(ScreenshotService.class, "Main frame is not visible, making it visible for screenshot");
                 mainFrame.setVisible(true);
+                // Wait longer for window to become visible
+                Thread.sleep(2000);
             }
             
-            // Bring frame to front
+            // Bring frame to front and ensure it's focused
             mainFrame.toFront();
             mainFrame.requestFocus();
+            mainFrame.repaint();
             
-            // Wait for UI to stabilize
-            Thread.sleep(SCREENSHOT_DELAY);
+            // Force a complete repaint of all components
+            SwingUtilities.invokeAndWait(() -> {
+                mainFrame.invalidate();
+                mainFrame.validate();
+                mainFrame.repaint();
+            });
+            
+            // Wait for UI to stabilize and fully render
+            Thread.sleep(SCREENSHOT_DELAY * 3); // Triple the normal delay for better rendering
             
             // Get frame dimensions
             Rectangle frameBounds = mainFrame.getBounds();
             LoggerUtil.debug(ScreenshotService.class, "Frame bounds: " + frameBounds);
             
+            // Ensure frame has valid bounds
+            if (frameBounds.width <= 0 || frameBounds.height <= 0) {
+                LoggerUtil.error(ScreenshotService.class, "Frame has invalid bounds: " + frameBounds);
+                return null;
+            }
+            
             // Create robot for screen capture
             Robot robot = new Robot();
+            
+            // Additional delay before capture to ensure everything is rendered
+            Thread.sleep(1000);
             
             // Capture the frame area
             BufferedImage screenshot = robot.createScreenCapture(frameBounds);

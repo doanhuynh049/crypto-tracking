@@ -9,6 +9,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.List;
 import java.io.File;
 import javax.swing.JFrame;
+import javax.swing.SwingUtilities;
 
 /**
  * Scheduler service for sending daily portfolio reports
@@ -97,7 +98,21 @@ public class DailyReportScheduler {
      */
     public static void sendManualReport() {
         LoggerUtil.info(DailyReportScheduler.class, "Sending manual daily report");
-        sendDailyReport();
+        
+        // If called from EDT (like a button click), run in background thread
+        if (SwingUtilities.isEventDispatchThread()) {
+            // Run in background thread to avoid blocking EDT
+            new Thread(() -> {
+                try {
+                    sendDailyReport();
+                } catch (Exception e) {
+                    LoggerUtil.error(DailyReportScheduler.class, "Error in manual report thread: " + e.getMessage(), e);
+                }
+            }, "ManualReportThread").start();
+        } else {
+            // Not on EDT, safe to run directly
+            sendDailyReport();
+        }
     }
     
     /**
@@ -180,7 +195,7 @@ public class DailyReportScheduler {
             
             LoggerUtil.info(DailyReportScheduler.class, "Generating daily report for " + cryptoList.size() + " cryptocurrencies");
             
-            // Capture screenshot
+            // Build dedicated portfolio screenshot (no UI dependency)
             File screenshotFile = capturePortfolioScreenshot();
             
             // Send email report
@@ -205,55 +220,35 @@ public class DailyReportScheduler {
      */
     private static File capturePortfolioScreenshot() {
         try {
-            LoggerUtil.debug(DailyReportScheduler.class, "Capturing portfolio screenshot for daily report");
+            LoggerUtil.debug(DailyReportScheduler.class, "Building dedicated portfolio screenshot for daily report");
             
-            File screenshotFile = null;
-            
-            // Try different screenshot methods
-            if (mainFrame != null) {
-                // Ensure Portfolio tab is selected before screenshot
-                ensurePortfolioTabSelected();
-                
-                // Wait for UI to update
-                Thread.sleep(2000);
-                
-                // First try to capture the main frame
-                screenshotFile = ScreenshotService.capturePortfolioScreenshot(mainFrame);
+            // Check if data manager is available
+            if (dataManager == null) {
+                LoggerUtil.error(DailyReportScheduler.class, "Portfolio data manager not available for screenshot");
+                return null;
             }
             
-            if (screenshotFile == null) {
-                // Fallback to desktop screenshot
-                LoggerUtil.debug(DailyReportScheduler.class, "Main frame capture failed, trying desktop screenshot");
-                screenshotFile = ScreenshotService.captureDesktopScreenshot();
+            // Get crypto data
+            List<CryptoData> cryptoList = dataManager.getCryptoList();
+            if (cryptoList == null || cryptoList.isEmpty()) {
+                LoggerUtil.warning(DailyReportScheduler.class, "No cryptocurrency data available for screenshot");
+                return null;
             }
             
-            if (screenshotFile == null) {
-                LoggerUtil.warning(DailyReportScheduler.class, "No screenshot captured for daily report");
+            // Build dedicated portfolio screenshot - no fallbacks to screen capture
+            File screenshotFile = PortfolioScreenshotBuilder.buildPortfolioScreenshot(cryptoList);
+            
+            if (screenshotFile != null) {
+                LoggerUtil.info(DailyReportScheduler.class, "Dedicated portfolio screenshot ready: " + screenshotFile.getName());
             } else {
-                LoggerUtil.info(DailyReportScheduler.class, "Screenshot captured: " + screenshotFile.getName());
+                LoggerUtil.warning(DailyReportScheduler.class, "Failed to build dedicated portfolio screenshot - continuing without image");
             }
             
             return screenshotFile;
             
         } catch (Exception e) {
-            LoggerUtil.error(DailyReportScheduler.class, "Error capturing screenshot for daily report: " + e.getMessage(), e);
+            LoggerUtil.error(DailyReportScheduler.class, "Error creating portfolio screenshot: " + e.getMessage(), e);
             return null;
-        }
-    }
-    
-    /**
-     * Ensure the Portfolio tab is selected in the main application
-     */
-    private static void ensurePortfolioTabSelected() {
-        try {
-            if (mainFrame instanceof CryptoMainApp) {
-                LoggerUtil.debug(DailyReportScheduler.class, "Switching to Portfolio tab for screenshot");
-                CryptoMainApp app = (CryptoMainApp) mainFrame;
-                // Use reflection to access the selectPortfolioTab method
-                app.selectPortfolioTab();
-            }
-        } catch (Exception e) {
-            LoggerUtil.warning(DailyReportScheduler.class, "Could not ensure Portfolio tab selection: " + e.getMessage());
         }
     }
     
@@ -277,20 +272,19 @@ public class DailyReportScheduler {
                 return false;
             }
             
-            // Test screenshot capture
+            // Test portfolio screenshot generation
             File testScreenshot = null;
-            if (mainFrame != null) {
-                testScreenshot = ScreenshotService.capturePortfolioScreenshot(mainFrame);
+            if (dataManager != null) {
+                List<CryptoData> cryptoList = dataManager.getCryptoList();
+                if (cryptoList != null && !cryptoList.isEmpty()) {
+                    testScreenshot = PortfolioScreenshotBuilder.buildPortfolioScreenshot(cryptoList);
+                }
             }
             
-            if (testScreenshot == null) {
-                testScreenshot = ScreenshotService.captureDesktopScreenshot();
-            }
-            
-            if (testScreenshot == null) {
-                LoggerUtil.warning(DailyReportScheduler.class, "Test warning: Screenshot capture failed");
+            if (testScreenshot != null) {
+                LoggerUtil.info(DailyReportScheduler.class, "Test: Portfolio screenshot generated successfully");
             } else {
-                LoggerUtil.info(DailyReportScheduler.class, "Test: Screenshot captured successfully");
+                LoggerUtil.warning(DailyReportScheduler.class, "Test warning: Portfolio screenshot generation failed - this is not critical for daily reports");
             }
             
             LoggerUtil.info(DailyReportScheduler.class, "Daily report system test completed successfully");
