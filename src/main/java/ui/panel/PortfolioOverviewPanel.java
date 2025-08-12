@@ -1,3 +1,11 @@
+package ui.panel;
+
+import model.CryptoData;
+import model.PortfolioRebalanceRecommendation;
+import data.PortfolioDataManager;
+import service.PortfolioRebalanceService;
+import util.LoggerUtil;
+
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;

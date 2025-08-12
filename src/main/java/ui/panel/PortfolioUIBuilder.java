@@ -1,3 +1,11 @@
+package ui.panel;
+
+import model.CryptoData;
+import data.PortfolioDataManager;
+import ui.dialog.AddCryptoDialog;
+import ui.dialog.AiAnalysisDialog;
+import util.LoggerUtil;
+
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
@@ -668,8 +676,6 @@ public class PortfolioUIBuilder {
         helpDialog.setVisible(true);
     }
 
-    // ...existing code...
-    
     /**
      * Update portfolio value display
      */
@@ -693,7 +699,7 @@ public class PortfolioUIBuilder {
     }
     
     /**
-     * Add cryptocurrency data to table
+     * Add cryptocurrency to table
      */
     public void addCryptoToTable(CryptoData crypto) {
         LoggerUtil.debug(PortfolioUIBuilder.class, "Adding cryptocurrency to table: " + crypto.symbol);

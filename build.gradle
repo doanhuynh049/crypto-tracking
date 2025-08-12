@@ -24,7 +24,7 @@ dependencies {
 }
 
 application {
-    mainClass = 'CryptoApp'
+    mainClass = 'main.CryptoApp'
 }
 
 // === NO BUILD FILES CONFIGURATION ===

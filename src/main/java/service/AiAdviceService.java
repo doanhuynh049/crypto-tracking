@@ -1,3 +1,9 @@
+package service;
+
+import model.CryptoData;
+import cache.AiResponseCache;
+import util.LoggerUtil;
+
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -609,6 +615,7 @@ public class AiAdviceService {
                         }
                     }
                 }
+                
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 LoggerUtil.error("AI API request interrupted: " + e.getMessage());

@@ -1,3 +1,8 @@
+package service;
+
+import model.CryptoData;
+import util.LoggerUtil;
+
 import javax.mail.*;
 import javax.mail.internet.*;
 import java.util.Properties;

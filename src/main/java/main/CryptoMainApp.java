@@ -1,3 +1,12 @@
+package main;
+
+import data.PortfolioDataManager;
+import service.DailyReportScheduler;
+import service.EmailService;
+import ui.panel.PortfolioContentPanel;
+import ui.panel.PortfolioOverviewPanel;
+import util.LoggerUtil;
+
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;

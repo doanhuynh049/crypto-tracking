@@ -1,3 +1,8 @@
+package ui.panel;
+
+import data.PortfolioDataManager;
+import util.LoggerUtil;
+
 import javax.swing.*;
 import java.awt.*;
 

@@ -1,3 +1,10 @@
+package service;
+
+import model.CryptoData;
+import model.PortfolioRebalanceRecommendation;
+import data.PortfolioDataManager;
+import util.LoggerUtil;
+
 import java.util.List;
 import java.util.stream.Collectors;
 import java.text.DecimalFormat;

@@ -1,3 +1,7 @@
+package main;
+
+import util.LoggerUtil;
+
 /**
  * Main launcher class for the Crypto Portfolio application.
  * Launches the main application with navigation panel and portfolio view.

@@ -1,3 +1,10 @@
+package data;
+
+import model.CryptoData;
+import service.AiAdviceService;
+import ui.panel.PortfolioUIBuilder;
+import util.LoggerUtil;
+
 import javax.swing.*;
 import java.io.*;
 import java.net.HttpURLConnection;

@@ -1,3 +1,10 @@
+package ui.dialog;
+
+import model.CryptoData;
+import service.AiAdviceService;
+import cache.AiResponseCache;
+import util.LoggerUtil;
+
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;

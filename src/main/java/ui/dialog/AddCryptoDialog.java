@@ -1,3 +1,8 @@
+package ui.dialog;
+
+import model.CryptoData;
+import data.PortfolioDataManager;
+
 import javax.swing.*;
 import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
