@@ -271,9 +271,9 @@ public class PortfolioScreenshotBuilder {
             g2d.setColor(DIVIDER_COLOR);
             g2d.drawRect(20, tableY, SCREENSHOT_WIDTH - 40, tableHeight);
             
-            // Column headers
-            String[] headers = {"Crypto", "Price", "Holdings", "Value", "Avg Buy", "P&L %", "Target"};
-            int[] columnWidths = {200, 100, 120, 100, 100, 80, 100};
+            // Column headers - Added AI Advice column
+            String[] headers = {"Crypto", "Price", "Holdings", "Value", "Avg Buy", "P&L %", "Target", "AI Advice"};
+            int[] columnWidths = {160, 90, 100, 90, 90, 70, 90, 140};
             int[] columnX = new int[headers.length];
             
             columnX[0] = 30;
@@ -344,6 +344,30 @@ public class PortfolioScreenshotBuilder {
                 
                 // 3M Target
                 g2d.drawString(String.format("$%.4f", crypto.targetPrice3Month), columnX[6], currentY - 8);
+                
+                // AI Advice (with status icons and color coding)
+                String aiAdvice = crypto.getAiAdviceWithStatus();
+                if (aiAdvice != null) {
+                    // Color code based on AI status
+                    if (aiAdvice.startsWith("🤖")) {
+                        g2d.setColor(new Color(46, 125, 50)); // AI success - dark green
+                    } else if (aiAdvice.startsWith("📊")) {
+                        g2d.setColor(new Color(25, 118, 210)); // Rule-based - blue
+                    } else if (aiAdvice.startsWith("❌")) {
+                        g2d.setColor(DANGER_COLOR); // Error - red
+                    } else if (aiAdvice.startsWith("🔄")) {
+                        g2d.setColor(new Color(255, 152, 0)); // Loading - orange
+                    } else {
+                        g2d.setColor(TEXT_PRIMARY); // Default
+                    }
+                    
+                    // Truncate if too long for column
+                    if (aiAdvice.length() > 18) {
+                        aiAdvice = aiAdvice.substring(0, 15) + "...";
+                    }
+                    g2d.drawString(aiAdvice, columnX[7], currentY - 8);
+                }
+                g2d.setColor(TEXT_PRIMARY); // Reset color
                 
                 // Row separator
                 g2d.setColor(DIVIDER_COLOR);
