@@ -23,6 +23,11 @@ public class CryptoData implements Serializable {
     public transient String aiStatus = "LOADING"; // LOADING, AI_SUCCESS, FALLBACK, ERROR (not saved to file)
     public transient long lastAiUpdate = 0; // Timestamp of last AI update (not saved to file)
     
+    // Technical Analysis data (transient - not saved to file)
+    public transient TechnicalIndicators technicalIndicators; // Technical analysis data
+    public transient String technicalAnalysisStatus = "LOADING"; // LOADING, SUCCESS, ERROR
+    public transient long lastTechnicalUpdate = 0; // Timestamp of last technical analysis update
+    
     // Constructor with all fields including expected entry
     public CryptoData(String id, String name, String symbol, double currentPrice, double expectedPrice, 
                      double expectedEntry, double targetPrice3Month, double targetPriceLongTerm, 
@@ -206,6 +211,66 @@ public class CryptoData implements Serializable {
         if (lastAiUpdate == 0) {
             lastAiUpdate = System.currentTimeMillis();
         }
+        
+        // Initialize technical analysis fields
+        if (technicalAnalysisStatus == null) {
+            technicalAnalysisStatus = "LOADING";
+        }
+        if (lastTechnicalUpdate == 0) {
+            lastTechnicalUpdate = System.currentTimeMillis();
+        }
+    }
+
+    /**
+     * Set technical analysis data
+     */
+    public void setTechnicalIndicators(TechnicalIndicators indicators) {
+        this.technicalIndicators = indicators;
+        this.technicalAnalysisStatus = "SUCCESS";
+        this.lastTechnicalUpdate = System.currentTimeMillis();
+    }
+
+    /**
+     * Set technical analysis error status
+     */
+    public void setTechnicalAnalysisError() {
+        this.technicalIndicators = null;
+        this.technicalAnalysisStatus = "ERROR";
+        this.lastTechnicalUpdate = System.currentTimeMillis();
+    }
+
+    /**
+     * Get technical analysis status with indicator
+     */
+    public String getTechnicalAnalysisStatus() {
+        if (technicalAnalysisStatus == null || technicalAnalysisStatus.equals("LOADING")) {
+            return "🔄 Loading...";
+        } else if (technicalAnalysisStatus.equals("SUCCESS")) {
+            if (technicalIndicators != null) {
+                return "📊 " + technicalIndicators.getOverallEntryQuality().toString();
+            }
+            return "📊 Available";
+        } else if (technicalAnalysisStatus.equals("ERROR")) {
+            return "❌ Error";
+        }
+        return "❓ Unknown";
+    }
+
+    /**
+     * Check if technical analysis is available
+     */
+    public boolean hasTechnicalAnalysis() {
+        return technicalIndicators != null && technicalAnalysisStatus.equals("SUCCESS");
+    }
+
+    /**
+     * Get technical analysis summary
+     */
+    public String getTechnicalAnalysisSummary() {
+        if (hasTechnicalAnalysis()) {
+            return technicalIndicators.getAnalysisSummary();
+        }
+        return "Technical analysis not available";
     }
 
     @Override

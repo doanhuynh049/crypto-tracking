@@ -1,0 +1,801 @@
+package data;
+
+import model.CryptoData;
+import model.WatchlistData;
+import model.EntryStatus;
+import service.TechnicalAnalysisService;
+import util.LoggerUtil;
+
+import java.io.*;
+import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
+
+/**
+ * Data Manager for Cryptocurrency Watchlist
+ * Handles CRUD operations, persistence, and technical analysis for watchlist items
+ */
+public class WatchlistDataManager {
+    
+    private static final String WATCHLIST_FILE = "data/watchlist.dat";
+    private static final String BACKUP_FILE = "data/watchlist_backup.dat";
+    
+    private List<WatchlistData> watchlist;
+    private final Object lock = new Object();
+    
+    public WatchlistDataManager() {
+        this.watchlist = new ArrayList<>();
+        loadWatchlist();
+    }
+    
+    /**
+     * Add cryptocurrency to watchlist
+     */
+    public boolean addToWatchlist(String symbol, String name, double currentPrice) {
+        synchronized (lock) {
+            // Check if already exists
+            if (isInWatchlist(symbol)) {
+                LoggerUtil.warning(WatchlistDataManager.class, 
+                    "Symbol " + symbol + " already exists in watchlist");
+                return false;
+            }
+            
+            // Need to provide all required constructor parameters
+            WatchlistData watchlistItem = new WatchlistData(
+                symbol.toLowerCase(), // id
+                name,                 // name  
+                symbol.toUpperCase(), // symbol
+                currentPrice,         // currentPrice
+                currentPrice * 0.95,  // expectedEntry (5% below current)
+                currentPrice * 1.20,  // targetPrice3Month (20% above)
+                currentPrice * 1.50   // targetPriceLongTerm (50% above)
+            );
+            watchlist.add(watchlistItem);
+            
+            LoggerUtil.info(WatchlistDataManager.class, 
+                "Added " + symbol + " to watchlist");
+            
+            // Perform initial technical analysis
+            analyzeWatchlistItem(watchlistItem);
+            
+            saveWatchlist();
+            return true;
+        }
+    }
+    
+    /**
+     * Remove cryptocurrency from watchlist
+     */
+    public boolean removeFromWatchlist(String symbol) {
+        synchronized (lock) {
+            boolean removed = watchlist.removeIf(item -> item.getSymbol().equals(symbol));
+            
+            if (removed) {
+                LoggerUtil.info(WatchlistDataManager.class, 
+                    "Removed " + symbol + " from watchlist");
+                saveWatchlist();
+            }
+            
+            return removed;
+        }
+    }
+    
+    /**
+     * Update price for watchlist item
+     */
+    public void updatePrice(String symbol, double newPrice) {
+        synchronized (lock) {
+            Optional<WatchlistData> item = watchlist.stream()
+                .filter(w -> w.getSymbol().equals(symbol))
+                .findFirst();
+                
+            if (item.isPresent()) {
+                WatchlistData watchlistItem = item.get();
+                double oldPrice = watchlistItem.getCurrentPrice();
+                watchlistItem.updatePrice(newPrice);
+                
+                LoggerUtil.info(WatchlistDataManager.class, 
+                    String.format("Updated %s price: %.2f -> %.2f", 
+                        symbol, oldPrice, newPrice));
+                
+                // Re-analyze after price update
+                analyzeWatchlistItem(watchlistItem);
+                saveWatchlist();
+            }
+        }
+    }
+    
+    /**
+     * Get all watchlist items
+     */
+    public List<WatchlistData> getWatchlist() {
+        synchronized (lock) {
+            return new ArrayList<>(watchlist);
+        }
+    }
+    
+    /**
+     * Get watchlist item by symbol
+     */
+    public Optional<WatchlistData> getWatchlistItem(String symbol) {
+        synchronized (lock) {
+            return watchlist.stream()
+                .filter(item -> item.getSymbol().equals(symbol))
+                .findFirst();
+        }
+    }
+    
+    /**
+     * Check if symbol is in watchlist
+     */
+    public boolean isInWatchlist(String symbol) {
+        synchronized (lock) {
+            return watchlist.stream()
+                .anyMatch(item -> item.getSymbol().equals(symbol));
+        }
+    }
+    
+    /**
+     * Get watchlist items with good entry opportunities
+     */
+    public List<WatchlistData> getGoodEntryOpportunities() {
+        synchronized (lock) {
+            return watchlist.stream()
+                .filter(item -> item.getEntryOpportunityScore() >= 7.0)
+                .sorted((a, b) -> Double.compare(b.getEntryOpportunityScore(), a.getEntryOpportunityScore()))
+                .collect(Collectors.toList());
+        }
+    }
+    
+    /**
+     * Get watchlist items by entry status
+     */
+    public List<WatchlistData> getWatchlistByStatus(EntryStatus status) {
+        synchronized (lock) {
+            return watchlist.stream()
+                .filter(item -> item.getEntryStatus() == status)
+                .collect(Collectors.toList());
+        }
+    }
+    
+    /**
+     * Update entry target for watchlist item
+     */
+    public void updateEntryTarget(String symbol, double targetPrice, String notes) {
+        synchronized (lock) {
+            Optional<WatchlistData> item = watchlist.stream()
+                .filter(w -> w.getSymbol().equals(symbol))
+                .findFirst();
+                
+            if (item.isPresent()) {
+                WatchlistData watchlistItem = item.get();
+                watchlistItem.setTargetEntryPrice(targetPrice);
+                watchlistItem.setNotes(notes);
+                
+                LoggerUtil.info(WatchlistDataManager.class, 
+                    String.format("Updated entry target for %s: %.2f", symbol, targetPrice));
+                
+                saveWatchlist();
+            }
+        }
+    }
+    
+    /**
+     * Perform technical analysis on watchlist item
+     */
+    public CompletableFuture<Void> analyzeWatchlistItem(WatchlistData watchlistItem) {
+        return TechnicalAnalysisService.analyzeEntry(watchlistItem.toCryptoData())
+            .thenAccept(indicators -> {
+                synchronized (lock) {
+                    watchlistItem.setTechnicalIndicators(indicators);
+                    watchlistItem.updateEntryOpportunity();
+                    
+                    LoggerUtil.info(WatchlistDataManager.class, 
+                        String.format("Technical analysis completed for %s - Score: %.1f", 
+                            watchlistItem.getSymbol(), watchlistItem.getEntryOpportunityScore()));
+                }
+            })
+            .exceptionally(ex -> {
+                LoggerUtil.error(WatchlistDataManager.class, 
+                    "Failed to analyze " + watchlistItem.getSymbol(), ex);
+                return null;
+            });
+    }
+    
+    /**
+     * Analyze all watchlist items
+     */
+    public CompletableFuture<Void> analyzeAllWatchlistItems() {
+        List<CompletableFuture<Void>> analysisResults = new ArrayList<>();
+        
+        synchronized (lock) {
+            for (WatchlistData item : watchlist) {
+                analysisResults.add(analyzeWatchlistItem(item));
+            }
+        }
+        
+        return CompletableFuture.allOf(analysisResults.toArray(new CompletableFuture[0]))
+            .thenRun(() -> {
+                saveWatchlist();
+                LoggerUtil.info(WatchlistDataManager.class, 
+                    "Completed analysis for all " + watchlist.size() + " watchlist items");
+            });
+    }
+    
+    /**
+     * Import watchlist from file
+     */
+    public boolean importWatchlist(String filePath) {
+        try {
+            File file = new File(filePath);
+            if (!file.exists()) {
+                LoggerUtil.error(WatchlistDataManager.class, 
+                    "Import file not found: " + filePath);
+                return false;
+            }
+            
+            List<WatchlistData> importedList = new ArrayList<>();
+            
+            try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(file))) {
+                @SuppressWarnings("unchecked")
+                List<WatchlistData> loaded = (List<WatchlistData>) ois.readObject();
+                importedList.addAll(loaded);
+            }
+            
+            synchronized (lock) {
+                // Merge with existing watchlist, avoiding duplicates
+                for (WatchlistData imported : importedList) {
+                    if (!isInWatchlist(imported.getSymbol())) {
+                        watchlist.add(imported);
+                    }
+                }
+            }
+            
+            saveWatchlist();
+            LoggerUtil.info(WatchlistDataManager.class, 
+                "Successfully imported " + importedList.size() + " watchlist items");
+            
+            return true;
+            
+        } catch (Exception e) {
+            LoggerUtil.error(WatchlistDataManager.class, 
+                "Failed to import watchlist from " + filePath, e);
+            return false;
+        }
+    }
+    
+    /**
+     * Export watchlist to file
+     */
+    public boolean exportWatchlist(String filePath) {
+        try {
+            File file = new File(filePath);
+            file.getParentFile().mkdirs();
+            
+            synchronized (lock) {
+                try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(file))) {
+                    oos.writeObject(new ArrayList<>(watchlist));
+                }
+            }
+            
+            LoggerUtil.info(WatchlistDataManager.class, 
+                "Successfully exported " + watchlist.size() + " watchlist items to " + filePath);
+            
+            return true;
+            
+        } catch (Exception e) {
+            LoggerUtil.error(WatchlistDataManager.class, 
+                "Failed to export watchlist to " + filePath, e);
+            return false;
+        }
+    }
+    
+    /**
+     * Clear all watchlist items
+     */
+    public void clearWatchlist() {
+        synchronized (lock) {
+            int count = watchlist.size();
+            watchlist.clear();
+            saveWatchlist();
+            
+            LoggerUtil.info(WatchlistDataManager.class, 
+                "Cleared " + count + " items from watchlist");
+        }
+    }
+    
+    /**
+     * Get watchlist statistics
+     */
+    public Map<String, Object> getWatchlistStatistics() {
+        synchronized (lock) {
+            Map<String, Object> stats = new HashMap<>();
+            
+            stats.put("totalItems", watchlist.size());
+            stats.put("excellentOpportunities", 
+                watchlist.stream().mapToLong(w -> w.getEntryOpportunityScore() >= 9.0 ? 1 : 0).sum());
+            stats.put("goodOpportunities", 
+                watchlist.stream().mapToLong(w -> w.getEntryOpportunityScore() >= 7.0 && w.getEntryOpportunityScore() < 9.0 ? 1 : 0).sum());
+            stats.put("averageOpportunityScore", 
+                watchlist.stream().mapToDouble(WatchlistData::getEntryOpportunityScore).average().orElse(0.0));
+            
+            // Status distribution
+            Map<EntryStatus, Long> statusCount = watchlist.stream()
+                .collect(Collectors.groupingBy(WatchlistData::getEntryStatus, Collectors.counting()));
+            stats.put("statusDistribution", statusCount);
+            
+            return stats;
+        }
+    }
+    
+    /**
+     * Save watchlist to file
+     */
+    private void saveWatchlist() {
+        try {
+            // Create backup
+            File dataFile = new File(WATCHLIST_FILE);
+            if (dataFile.exists()) {
+                File backupFile = new File(BACKUP_FILE);
+                dataFile.renameTo(backupFile);
+            }
+            
+            // Ensure directory exists
+            dataFile.getParentFile().mkdirs();
+            
+            // Save current watchlist
+            synchronized (lock) {
+                try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(dataFile))) {
+                    oos.writeObject(watchlist);
+                }
+            }
+            
+            LoggerUtil.info(WatchlistDataManager.class, 
+                "Watchlist saved successfully (" + watchlist.size() + " items)");
+            
+        } catch (Exception e) {
+            LoggerUtil.error(WatchlistDataManager.class, "Failed to save watchlist", e);
+            
+            // Restore backup if save failed
+            try {
+                File backupFile = new File(BACKUP_FILE);
+                if (backupFile.exists()) {
+                    backupFile.renameTo(new File(WATCHLIST_FILE));
+                }
+            } catch (Exception restoreEx) {
+                LoggerUtil.error(WatchlistDataManager.class, "Failed to restore backup", restoreEx);
+            }
+        }
+    }
+    
+    /**
+     * Load watchlist from file
+     */
+    private void loadWatchlist() {
+        try {
+            File dataFile = new File(WATCHLIST_FILE);
+            
+            if (dataFile.exists()) {
+                try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(dataFile))) {
+                    @SuppressWarnings("unchecked")
+                    List<WatchlistData> loaded = (List<WatchlistData>) ois.readObject();
+                    
+                    synchronized (lock) {
+                        watchlist.clear();
+                        watchlist.addAll(loaded);
+                    }
+                    
+                    LoggerUtil.info(WatchlistDataManager.class, 
+                        "Loaded " + watchlist.size() + " watchlist items");
+                }
+            } else {
+                LoggerUtil.info(WatchlistDataManager.class, 
+                    "No existing watchlist file found, starting with empty watchlist");
+            }
+            
+        } catch (Exception e) {
+            LoggerUtil.error(WatchlistDataManager.class, "Failed to load watchlist", e);
+            
+            // Try to load backup
+            try {
+                File backupFile = new File(BACKUP_FILE);
+                if (backupFile.exists()) {
+                    try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(backupFile))) {
+                        @SuppressWarnings("unchecked")
+                        List<WatchlistData> loaded = (List<WatchlistData>) ois.readObject();
+                        
+                        synchronized (lock) {
+                            watchlist.clear();
+                            watchlist.addAll(loaded);
+                        }
+                        
+                        LoggerUtil.info(WatchlistDataManager.class, 
+                            "Loaded " + watchlist.size() + " watchlist items from backup");
+                    }
+                }
+            } catch (Exception backupEx) {
+                LoggerUtil.error(WatchlistDataManager.class, "Failed to load backup", backupEx);
+                watchlist = new ArrayList<>();
+            }
+        }
+    }
+    
+    /**
+     * Add watchlist item directly
+     */
+    public boolean addWatchlistItem(WatchlistData item) {
+        synchronized (lock) {
+            if (isInWatchlist(item.symbol)) {
+                LoggerUtil.warning(WatchlistDataManager.class, 
+                    "Symbol " + item.symbol + " already exists in watchlist");
+                return false;
+            }
+            
+            watchlist.add(item);
+            
+            LoggerUtil.info(WatchlistDataManager.class, 
+                "Added " + item.symbol + " to watchlist");
+            
+            // Perform initial technical analysis
+            analyzeWatchlistItem(item);
+            
+            saveWatchlistData();
+            return true;
+        }
+    }
+    
+    /**
+     * Remove watchlist item by ID
+     */
+    public boolean removeWatchlistItem(String id) {
+        synchronized (lock) {
+            boolean removed = watchlist.removeIf(item -> item.id.equals(id));
+            
+            if (removed) {
+                LoggerUtil.info(WatchlistDataManager.class, 
+                    "Removed item with ID " + id + " from watchlist");
+                saveWatchlistData();
+            }
+            
+            return removed;
+        }
+    }
+    
+    /**
+     * Get all watchlist items (alternative method name)
+     */
+    public List<WatchlistData> getWatchlistItems() {
+        return getWatchlist();
+    }
+    
+    /**
+     * Refresh prices and analysis for all items
+     */
+    public void refreshPricesAndAnalysis() {
+        synchronized (lock) {
+            for (WatchlistData item : watchlist) {
+                // Update entry opportunity based on current data
+                item.updateEntryOpportunity();
+                
+                // Refresh technical analysis
+                analyzeWatchlistItem(item);
+            }
+            saveWatchlistData();
+        }
+    }
+    
+    /**
+     * Save watchlist data (alternative method name)
+     */
+    public void saveWatchlistData() {
+        saveWatchlist();
+    }
+    
+    /**
+     * Import watchlist with exception handling (alternative method signature)
+     */
+    public void importWatchlistWithException(String filePath) throws Exception {
+        if (!importWatchlist(filePath)) {
+            throw new Exception("Failed to import watchlist from " + filePath);
+        }
+    }
+    
+    /**
+     * Export watchlist (alternative method signature that throws exception)  
+     */
+    public void exportWatchlistWithException(String filePath) throws Exception {
+        if (!exportWatchlist(filePath)) {
+            throw new Exception("Failed to export watchlist to " + filePath);
+        }
+    }
+    
+    // ============ PORTFOLIO MANAGEMENT METHODS ============
+    
+    /**
+     * Get all items that have holdings (portfolio items)
+     */
+    public List<WatchlistData> getPortfolioItems() {
+        synchronized (lock) {
+            return watchlist.stream()
+                .filter(WatchlistData::hasHoldings)
+                .collect(Collectors.toList());
+        }
+    }
+    
+    /**
+     * Get all watchlist-only items (no holdings)
+     */
+    public List<WatchlistData> getWatchlistOnlyItems() {
+        synchronized (lock) {
+            return watchlist.stream()
+                .filter(WatchlistData::isWatchlistOnly)
+                .collect(Collectors.toList());
+        }
+    }
+    
+    /**
+     * Get total portfolio value
+     */
+    public double getTotalPortfolioValue() {
+        synchronized (lock) {
+            return watchlist.stream()
+                .filter(WatchlistData::hasHoldings)
+                .mapToDouble(WatchlistData::getTotalValue)
+                .sum();
+        }
+    }
+    
+    /**
+     * Get total portfolio profit/loss
+     */
+    public double getTotalProfitLoss() {
+        synchronized (lock) {
+            return watchlist.stream()
+                .filter(WatchlistData::hasHoldings)
+                .mapToDouble(WatchlistData::getProfitLoss)
+                .sum();
+        }
+    }
+    
+    /**
+     * Add holdings to existing item or create new portfolio item
+     */
+    public boolean addPortfolioHoldings(String symbol, String name, double amount, double buyPrice) {
+        synchronized (lock) {
+            Optional<WatchlistData> existing = watchlist.stream()
+                .filter(item -> item.getSymbol().equals(symbol))
+                .findFirst();
+            
+            if (existing.isPresent()) {
+                // Add to existing item
+                WatchlistData item = existing.get();
+                item.addHoldings(amount, buyPrice);
+                
+                LoggerUtil.info(WatchlistDataManager.class, 
+                    String.format("Added %.4f %s holdings @ $%.2f", amount, symbol, buyPrice));
+            } else {
+                // Create new portfolio item
+                WatchlistData newItem = new WatchlistData(
+                    symbol.toLowerCase(),
+                    name,
+                    symbol.toUpperCase(),
+                    buyPrice, // Use buy price as current price initially
+                    buyPrice * 0.95, // Default entry target 5% below
+                    buyPrice * 1.20, // Default 3-month target
+                    buyPrice * 1.50, // Default long-term target
+                    amount,
+                    buyPrice
+                );
+                
+                watchlist.add(newItem);
+                
+                LoggerUtil.info(WatchlistDataManager.class, 
+                    String.format("Created new portfolio item: %.4f %s @ $%.2f", amount, symbol, buyPrice));
+                
+                // Analyze new item
+                analyzeWatchlistItem(newItem);
+            }
+            
+            saveWatchlistData();
+            return true;
+        }
+    }
+    
+    /**
+     * Remove/sell holdings from portfolio item
+     */
+    public boolean sellPortfolioHoldings(String symbol, double amount) {
+        synchronized (lock) {
+            Optional<WatchlistData> item = watchlist.stream()
+                .filter(w -> w.getSymbol().equals(symbol) && w.hasHoldings())
+                .findFirst();
+            
+            if (item.isPresent()) {
+                WatchlistData portfolioItem = item.get();
+                boolean success = portfolioItem.removeHoldings(amount);
+                
+                if (success) {
+                    LoggerUtil.info(WatchlistDataManager.class, 
+                        String.format("Sold %.4f %s holdings", amount, symbol));
+                    saveWatchlistData();
+                }
+                
+                return success;
+            }
+            
+            return false;
+        }
+    }
+    
+    /**
+     * Update holdings for portfolio item directly
+     */
+    public boolean updatePortfolioHoldings(String symbol, double newHoldings, double newAvgPrice) {
+        synchronized (lock) {
+            Optional<WatchlistData> item = watchlist.stream()
+                .filter(w -> w.getSymbol().equals(symbol))
+                .findFirst();
+            
+            if (item.isPresent()) {
+                WatchlistData portfolioItem = item.get();
+                portfolioItem.setHoldings(newHoldings, newAvgPrice);
+                
+                LoggerUtil.info(WatchlistDataManager.class, 
+                    String.format("Updated %s holdings: %.4f @ $%.2f", symbol, newHoldings, newAvgPrice));
+                
+                saveWatchlistData();
+                return true;
+            }
+            
+            return false;
+        }
+    }
+    
+    /**
+     * Convert watchlist item to portfolio item by adding holdings
+     */
+    public boolean convertToPortfolioItem(String symbol, double amount, double buyPrice) {
+        return addPortfolioHoldings(symbol, null, amount, buyPrice);
+    }
+    
+    /**
+     * Convert portfolio item back to watchlist-only (remove all holdings)
+     */
+    public boolean convertToWatchlistOnly(String symbol) {
+        synchronized (lock) {
+            Optional<WatchlistData> item = watchlist.stream()
+                .filter(w -> w.getSymbol().equals(symbol) && w.hasHoldings())
+                .findFirst();
+            
+            if (item.isPresent()) {
+                WatchlistData portfolioItem = item.get();
+                portfolioItem.setHoldings(0, 0);
+                
+                LoggerUtil.info(WatchlistDataManager.class, 
+                    String.format("Converted %s to watchlist-only", symbol));
+                
+                saveWatchlistData();
+                return true;
+            }
+            
+            return false;
+        }
+    }
+    
+    /**
+     * Get portfolio statistics
+     */
+    public Map<String, Object> getPortfolioStatistics() {
+        synchronized (lock) {
+            Map<String, Object> stats = new HashMap<>();
+            
+            List<WatchlistData> portfolioItems = getPortfolioItems();
+            List<WatchlistData> watchlistItems = getWatchlistOnlyItems();
+            
+            stats.put("totalItems", watchlist.size());
+            stats.put("portfolioItems", portfolioItems.size());
+            stats.put("watchlistOnlyItems", watchlistItems.size());
+            stats.put("totalPortfolioValue", getTotalPortfolioValue());
+            stats.put("totalProfitLoss", getTotalProfitLoss());
+            
+            if (getTotalPortfolioValue() > 0) {
+                stats.put("totalProfitLossPercentage", getTotalProfitLoss() / (getTotalPortfolioValue() - getTotalProfitLoss()));
+            } else {
+                stats.put("totalProfitLossPercentage", 0.0);
+            }
+            
+            // Entry opportunities in watchlist-only items
+            long goodOpportunities = watchlistItems.stream()
+                .filter(item -> item.getEntryOpportunityScore() >= 70.0)
+                .count();
+            stats.put("goodEntryOpportunities", goodOpportunities);
+            
+            return stats;
+        }
+    }
+    
+    /**
+     * Import portfolio data from PortfolioDataManager into watchlist
+     * This creates the unified view where portfolio items appear as watchlist items with holdings
+     */
+    public boolean importPortfolioData(List<CryptoData> portfolioData) {
+        if (portfolioData == null || portfolioData.isEmpty()) {
+            LoggerUtil.info(WatchlistDataManager.class, "No portfolio data to import");
+            return true;
+        }
+        
+        synchronized (lock) {
+            int imported = 0;
+            int updated = 0;
+            
+            for (CryptoData cryptoData : portfolioData) {
+                String symbol = cryptoData.symbol;
+                
+                // Check if already exists in watchlist
+                Optional<WatchlistData> existing = watchlist.stream()
+                    .filter(item -> item.getSymbol().equals(symbol))
+                    .findFirst();
+                
+                if (existing.isPresent()) {
+                    // Update existing item with portfolio data
+                    WatchlistData item = existing.get();
+                    
+                    // Update prices and holdings
+                    item.currentPrice = cryptoData.currentPrice;
+                    if (cryptoData.holdings > 0) {
+                        item.setHoldings(cryptoData.holdings, cryptoData.avgBuyPrice);
+                        updated++;
+                    }
+                    
+                    // Update targets if not set
+                    if (item.expectedEntry == 0) {
+                        item.expectedEntry = cryptoData.expectedPrice > 0 ? cryptoData.expectedPrice : cryptoData.currentPrice * 0.95;
+                    }
+                    if (item.targetPrice3Month == 0) {
+                        item.targetPrice3Month = cryptoData.targetPrice3Month > 0 ? cryptoData.targetPrice3Month : cryptoData.currentPrice * 1.20;
+                    }
+                    if (item.targetPriceLongTerm == 0) {
+                        item.targetPriceLongTerm = cryptoData.targetPriceLongTerm > 0 ? cryptoData.targetPriceLongTerm : cryptoData.currentPrice * 1.50;
+                    }
+                    
+                } else {
+                    // Create new watchlist item from portfolio data
+                    WatchlistData newItem = new WatchlistData(
+                        symbol.toLowerCase(),
+                        cryptoData.name,
+                        symbol.toUpperCase(),
+                        cryptoData.currentPrice,
+                        cryptoData.expectedPrice > 0 ? cryptoData.expectedPrice : cryptoData.currentPrice * 0.95,
+                        cryptoData.targetPrice3Month > 0 ? cryptoData.targetPrice3Month : cryptoData.currentPrice * 1.20,
+                        cryptoData.targetPriceLongTerm > 0 ? cryptoData.targetPriceLongTerm : cryptoData.currentPrice * 1.50,
+                        cryptoData.holdings,
+                        cryptoData.avgBuyPrice
+                    );
+                    
+                    // Copy AI data if available
+                    if (cryptoData.aiAdvice != null && !cryptoData.aiAdvice.equals("Loading...")) {
+                        newItem.setAiAdvice(cryptoData.aiAdvice, cryptoData.isAiGenerated);
+                    }
+                    
+                    // Copy technical analysis if available
+                    if (cryptoData.technicalIndicators != null) {
+                        newItem.setTechnicalIndicators(cryptoData.technicalIndicators);
+                    }
+                    
+                    watchlist.add(newItem);
+                    imported++;
+                }
+            }
+            
+            LoggerUtil.info(WatchlistDataManager.class, 
+                String.format("Portfolio import complete: %d new items, %d updated items", imported, updated));
+            
+            if (imported > 0 || updated > 0) {
+                saveWatchlistData();
+                return true;
+            }
+            
+            return false;
+        }
+    }
+}

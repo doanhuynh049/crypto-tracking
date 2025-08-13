@@ -2,6 +2,7 @@ package data;
 
 import model.CryptoData;
 import service.AiAdviceService;
+import service.TechnicalAnalysisService;
 import ui.panel.PortfolioUIBuilder;
 import util.LoggerUtil;
 
@@ -269,6 +270,9 @@ public class PortfolioDataManager {
                     uiBuilder.getRefreshButton().setText("🔄 Refresh Prices");
                 }
                 updatePortfolioValue();
+                
+                // Trigger technical analysis after price updates
+                refreshTechnicalAnalysis();
             }
         };
         worker.execute();
@@ -338,6 +342,116 @@ public class PortfolioDataManager {
                 }
             });
         }
+    }
+
+    /**
+     * Refresh technical analysis for all cryptocurrencies
+     */
+    public void refreshTechnicalAnalysis() {
+        LoggerUtil.info(PortfolioDataManager.class, "Starting technical analysis refresh");
+        
+        if (uiBuilder != null) {
+            uiBuilder.getStatusLabel().setText("📊 Portfolio Status: Analyzing technical indicators...");
+        }
+        
+        // Reset all cryptocurrencies to LOADING state before starting technical analysis
+        for (CryptoData crypto : cryptoList) {
+            crypto.technicalAnalysisStatus = "LOADING";
+        }
+        
+        SwingWorker<Void, Void> worker = new SwingWorker<Void, Void>() {
+            @Override
+            protected Void doInBackground() throws Exception {
+                fetchTechnicalAnalysis();
+                return null;
+            }
+            
+            @Override
+            protected void done() {
+                if (uiBuilder != null) {
+                    uiBuilder.getStatusLabel().setText("📊 Portfolio Status: Technical analysis completed");
+                }
+            }
+        };
+        worker.execute();
+    }
+
+    /**
+     * Fetch technical analysis for all cryptocurrencies sequentially
+     */
+    private void fetchTechnicalAnalysis() {
+        try {
+            // Fetch technical analysis sequentially with delays
+            fetchTechnicalAnalysisSequentially(0);
+        } catch (Exception e) {
+            LoggerUtil.error(PortfolioDataManager.class, "Error initiating technical analysis fetch", e);
+        }
+    }
+
+    /**
+     * Fetch technical analysis sequentially for each cryptocurrency
+     */
+    private void fetchTechnicalAnalysisSequentially(int index) {
+        if (index >= cryptoList.size()) {
+            // All cryptocurrencies processed
+            SwingUtilities.invokeLater(() -> {
+                updateTableData();
+                if (uiBuilder != null) {
+                    uiBuilder.getStatusLabel().setText("📊 Portfolio Status: Ready");
+                }
+            });
+            return;
+        }
+        
+        CryptoData crypto = cryptoList.get(index);
+        LoggerUtil.debug(PortfolioDataManager.class, 
+            "Analyzing technical indicators for " + crypto.symbol + " (" + (index + 1) + "/" + cryptoList.size() + ")");
+        
+        // Update status to show progress
+        SwingUtilities.invokeLater(() -> {
+            if (uiBuilder != null) {
+                uiBuilder.getStatusLabel().setText("📊 Portfolio Status: Analyzing " + crypto.symbol + "...");
+            }
+        });
+        
+        TechnicalAnalysisService.analyzeEntry(crypto)
+            .thenAccept(indicators -> {
+                LoggerUtil.debug(PortfolioDataManager.class, 
+                    "Successfully analyzed " + crypto.symbol + " - Quality: " + indicators.getOverallEntryQuality());
+                
+                crypto.setTechnicalIndicators(indicators);
+                
+                // Update table for this specific crypto
+                SwingUtilities.invokeLater(() -> {
+                    updateSingleCryptoInTable(crypto, index);
+                });
+                
+                // Wait a bit before next request (1 second delay)
+                Timer delayTimer = new Timer(1000, e -> {
+                    fetchTechnicalAnalysisSequentially(index + 1);
+                });
+                delayTimer.setRepeats(false);
+                delayTimer.start();
+            })
+            .exceptionally(throwable -> {
+                LoggerUtil.error(PortfolioDataManager.class, 
+                    "Failed to analyze " + crypto.symbol, throwable);
+                
+                crypto.setTechnicalAnalysisError();
+                
+                SwingUtilities.invokeLater(() -> {
+                    updateSingleCryptoInTable(crypto, index);
+                });
+                
+                // Continue with next crypto even if this one failed (shorter delay for errors)
+                Timer delayTimer = new Timer(500, e -> {
+                    fetchTechnicalAnalysisSequentially(index + 1);
+                });
+                delayTimer.setRepeats(false);
+                delayTimer.start();
+                
+                return null;
+            });
     }
     
     /**

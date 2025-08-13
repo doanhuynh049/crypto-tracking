@@ -491,8 +491,40 @@ public class CryptoMainApp extends JFrame {
     }
     
     private JPanel createWatchlistContent() {
-        return createPlaceholderContent("🎯 Watchlist", 
-            "Track your favorite cryptocurrencies and set price alerts");
+        LoggerUtil.debug(CryptoMainApp.class, "Creating watchlist content panel");
+        
+        try {
+            // Create the WatchlistPanel
+            ui.panel.WatchlistPanel watchlistPanel = new ui.panel.WatchlistPanel();
+            
+            // Import portfolio data into the watchlist for unified view
+            SwingUtilities.invokeLater(() -> {
+                try {
+                    // Create a portfolio data manager to get existing portfolio data
+                    PortfolioDataManager portfolioDataManager = new PortfolioDataManager();
+                    
+                    // Import portfolio data into watchlist
+                    boolean imported = watchlistPanel.getDataManager().importPortfolioData(portfolioDataManager.getCryptoList());
+                    
+                    if (imported) {
+                        LoggerUtil.info(CryptoMainApp.class, "Successfully imported portfolio data into watchlist");
+                        // Refresh the watchlist panel to show the imported data
+                        watchlistPanel.refreshWatchlistData();
+                    } else {
+                        LoggerUtil.info(CryptoMainApp.class, "No portfolio data to import into watchlist");
+                    }
+                } catch (Exception e) {
+                    LoggerUtil.error(CryptoMainApp.class, "Failed to import portfolio data into watchlist", e);
+                }
+            });
+            
+            return watchlistPanel;
+        } catch (Exception e) {
+            LoggerUtil.error(CryptoMainApp.class, "Failed to create watchlist panel", e);
+            // Fallback to placeholder if there's an error
+            return createPlaceholderContent("🎯 Watchlist", 
+                "Error loading watchlist panel: " + e.getMessage());
+        }
     }
     
     private JPanel createNewsContent() {

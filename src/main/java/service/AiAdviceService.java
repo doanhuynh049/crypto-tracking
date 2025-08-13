@@ -365,9 +365,28 @@ public class AiAdviceService {
     }
     
     /**
-     * Enhanced rule-based advice when AI API fails
+     * Enhanced rule-based advice with caching support
      */
     private static String getSimpleAdvice(CryptoData crypto) {
+        // Check cache first
+        String cachedAdvice = AiResponseCache.getCachedSimpleAdvice(crypto.symbol);
+        if (cachedAdvice != null) {
+            return cachedAdvice;
+        }
+        
+        // Generate advice based on current data
+        String advice = generateSimpleAdvice(crypto);
+        
+        // Cache the advice
+        AiResponseCache.cacheSimpleAdvice(crypto.symbol, advice);
+        
+        return advice;
+    }
+    
+    /**
+     * Generate simple advice based on crypto data (extracted for caching)
+     */
+    private static String generateSimpleAdvice(CryptoData crypto) {
         double profitLoss = crypto.getProfitLossPercentage();
         double entryOpportunity = crypto.getEntryOpportunity();
         double currentPrice = crypto.currentPrice;

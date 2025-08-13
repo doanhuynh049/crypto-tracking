@@ -169,13 +169,26 @@ public class AiResponseCache {
     public static CacheStats getCacheStats() {
         int totalEntries = cache.size();
         int expiredEntries = 0;
+        int detailedAnalysisEntries = 0;
+        int simpleAdviceEntries = 0;
         long oldestEntryAge = 0;
         long newestEntryAge = Long.MAX_VALUE;
         
-        for (CachedResponse cached : cache.values()) {
+        for (Map.Entry<String, CachedResponse> entry : cache.entrySet()) {
+            CachedResponse cached = entry.getValue();
+            String key = entry.getKey();
+            
             if (cached.isExpired()) {
                 expiredEntries++;
             }
+            
+            // Count by type
+            if (key.endsWith("_detailed_analysis")) {
+                detailedAnalysisEntries++;
+            } else if (key.endsWith("_simple_advice")) {
+                simpleAdviceEntries++;
+            }
+            
             long age = cached.getAgeInMinutes();
             if (age > oldestEntryAge) {
                 oldestEntryAge = age;
@@ -189,7 +202,7 @@ public class AiResponseCache {
             newestEntryAge = 0;
         }
         
-        return new CacheStats(totalEntries, expiredEntries, oldestEntryAge, newestEntryAge);
+        return new CacheStats(totalEntries, expiredEntries, detailedAnalysisEntries, simpleAdviceEntries, oldestEntryAge, newestEntryAge);
     }
     
     /**
@@ -227,6 +240,95 @@ public class AiResponseCache {
         return "Cached " + cached.getFormattedAge();
     }
     
+    /**
+     * Get cached simple advice for a cryptocurrency
+     * @param cryptoSymbol The cryptocurrency symbol
+     * @return Cached simple advice or null if not found/expired
+     */
+    public static String getCachedSimpleAdvice(String cryptoSymbol) {
+        if (cryptoSymbol == null || cryptoSymbol.trim().isEmpty()) {
+            return null;
+        }
+        
+        String key = createSimpleAdviceCacheKey(cryptoSymbol);
+        CachedResponse cached = cache.get(key);
+        
+        if (cached == null) {
+            LoggerUtil.debug(AiResponseCache.class, "No cached simple advice found for " + cryptoSymbol);
+            return null;
+        }
+        
+        if (cached.isExpired()) {
+            LoggerUtil.info(AiResponseCache.class, "Cached simple advice expired for " + cryptoSymbol + " (age: " + cached.getFormattedAge() + ")");
+            cache.remove(key);
+            saveCacheToDisk(); // Save immediately after removal
+            return null;
+        }
+        
+        LoggerUtil.debug(AiResponseCache.class, "Using cached simple advice for " + cryptoSymbol + " (cached " + cached.getFormattedAge() + ")");
+        return cached.response;
+    }
+    
+    /**
+     * Cache a simple advice response
+     * @param cryptoSymbol The cryptocurrency symbol
+     * @param advice The simple advice to cache
+     */
+    public static void cacheSimpleAdvice(String cryptoSymbol, String advice) {
+        if (cryptoSymbol == null || cryptoSymbol.trim().isEmpty() || 
+            advice == null || advice.trim().isEmpty()) {
+            LoggerUtil.warning(AiResponseCache.class, "Cannot cache empty simple advice for " + cryptoSymbol);
+            return;
+        }
+        
+        String key = createSimpleAdviceCacheKey(cryptoSymbol);
+        CachedResponse cachedResponse = new CachedResponse(advice, cryptoSymbol);
+        
+        cache.put(key, cachedResponse);
+        LoggerUtil.debug(AiResponseCache.class, "Cached simple advice for " + cryptoSymbol + " (expires in " + CACHE_DURATION_HOURS + " hours)");
+        
+        // Save to disk asynchronously
+        saveCacheToDisk();
+    }
+    
+    /**
+     * Clear simple advice cache for a specific cryptocurrency
+     * @param cryptoSymbol The cryptocurrency symbol
+     */
+    public static void clearSimpleAdviceCache(String cryptoSymbol) {
+        if (cryptoSymbol == null || cryptoSymbol.trim().isEmpty()) {
+            return;
+        }
+        
+        String key = createSimpleAdviceCacheKey(cryptoSymbol);
+        CachedResponse removed = cache.remove(key);
+        
+        if (removed != null) {
+            LoggerUtil.debug(AiResponseCache.class, "Manually cleared simple advice cache for " + cryptoSymbol);
+            saveCacheToDisk();
+        }
+    }
+    
+    /**
+     * Check if simple advice cache exists for a cryptocurrency
+     */
+    public static boolean hasCachedSimpleAdvice(String cryptoSymbol) {
+        if (cryptoSymbol == null || cryptoSymbol.trim().isEmpty()) {
+            return false;
+        }
+        
+        String key = createSimpleAdviceCacheKey(cryptoSymbol);
+        CachedResponse cached = cache.get(key);
+        return cached != null && !cached.isExpired();
+    }
+
+    /**
+     * Create cache key for simple advice
+     */
+    private static String createSimpleAdviceCacheKey(String cryptoSymbol) {
+        return cryptoSymbol.toLowerCase().trim() + "_simple_advice";
+    }
+
     // Private helper methods
     
     private static String createCacheKey(String cryptoSymbol) {
@@ -323,20 +425,24 @@ public class AiResponseCache {
     public static class CacheStats {
         public final int totalEntries;
         public final int expiredEntries;
+        public final int detailedAnalysisEntries;
+        public final int simpleAdviceEntries;
         public final long oldestEntryAgeMinutes;
         public final long newestEntryAgeMinutes;
         
-        CacheStats(int totalEntries, int expiredEntries, long oldestEntryAgeMinutes, long newestEntryAgeMinutes) {
+        CacheStats(int totalEntries, int expiredEntries, int detailedAnalysisEntries, int simpleAdviceEntries, long oldestEntryAgeMinutes, long newestEntryAgeMinutes) {
             this.totalEntries = totalEntries;
             this.expiredEntries = expiredEntries;
+            this.detailedAnalysisEntries = detailedAnalysisEntries;
+            this.simpleAdviceEntries = simpleAdviceEntries;
             this.oldestEntryAgeMinutes = oldestEntryAgeMinutes;
             this.newestEntryAgeMinutes = newestEntryAgeMinutes;
         }
         
         @Override
         public String toString() {
-            return String.format("Cache Stats: %d total, %d expired, oldest: %d min, newest: %d min", 
-                totalEntries, expiredEntries, oldestEntryAgeMinutes, newestEntryAgeMinutes);
+            return String.format("Cache Stats: %d total (%d detailed, %d simple), %d expired, oldest: %d min, newest: %d min", 
+                totalEntries, detailedAnalysisEntries, simpleAdviceEntries, expiredEntries, oldestEntryAgeMinutes, newestEntryAgeMinutes);
         }
     }
 }
