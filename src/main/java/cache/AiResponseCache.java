@@ -21,7 +21,7 @@ public class AiResponseCache {
     private static final Map<String, CachedResponse> cache = new ConcurrentHashMap<>();
     
     // Cache configuration
-    private static final long CACHE_DURATION_HOURS = 12;
+    private static final long CACHE_DURATION_HOURS = 6;
     private static final long CACHE_DURATION_MS = CACHE_DURATION_HOURS * 60 * 60 * 1000;
     private static final String CACHE_FILE_PATH = "cache/ai_responses.dat";
     

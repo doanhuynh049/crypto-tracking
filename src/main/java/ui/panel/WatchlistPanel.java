@@ -53,11 +53,42 @@ public class WatchlistPanel extends JPanel {
     private static final Color DIVIDER_COLOR = new Color(224, 224, 224);
     
     public WatchlistPanel() {
-        LoggerUtil.info(WatchlistPanel.class, "Initializing Watchlist Panel");
+        LoggerUtil.debug(WatchlistPanel.class, "=== Initializing Watchlist Panel ===");
         
         try {
             // Initialize data manager
             dataManager = new WatchlistDataManager();
+            
+            // Set callback for technical analysis updates
+            dataManager.setTechnicalAnalysisCallback(new WatchlistDataManager.TechnicalAnalysisCallback() {
+                @Override
+                public void onTechnicalAnalysisComplete(WatchlistData item) {
+                    LoggerUtil.debug(WatchlistPanel.class, 
+                        "=== Technical Analysis Complete Callback for " + item.getSymbol() + " ===");
+                    
+                    // Update UI on EDT
+                    SwingUtilities.invokeLater(() -> {
+                        updateTableData();
+                        updateStats();
+                        statusLabel.setText("✅ " + item.getSymbol() + " analyzed");
+                        statusLabel.setForeground(SUCCESS_COLOR);
+                    });
+                }
+                
+                @Override
+                public void onAllAnalysisComplete() {
+                    LoggerUtil.debug(WatchlistPanel.class, 
+                        "=== All Technical Analysis Complete Callback ===");
+                    
+                    // Update UI on EDT
+                    SwingUtilities.invokeLater(() -> {
+                        updateTableData();
+                        updateStats();
+                        statusLabel.setText("✅ All analysis complete");
+                        statusLabel.setForeground(SUCCESS_COLOR);
+                    });
+                }
+            });
             
             // Setup the UI
             setupUI();
@@ -65,7 +96,7 @@ public class WatchlistPanel extends JPanel {
             // Load initial data
             refreshWatchlistData();
             
-            LoggerUtil.info(WatchlistPanel.class, "Watchlist Panel initialized successfully");
+            LoggerUtil.info(WatchlistPanel.class, "=== Watchlist Panel initialized successfully ===");
         } catch (Exception e) {
             LoggerUtil.error(WatchlistPanel.class, "Failed to initialize Watchlist Panel", e);
         }
@@ -104,7 +135,7 @@ public class WatchlistPanel extends JPanel {
         titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 24));
         titleLabel.setForeground(TEXT_PRIMARY);
         
-        JLabel subtitleLabel = new JLabel("Technical analysis and entry signals for crypto buy decisions");
+        JLabel subtitleLabel = new JLabel("Comprehensive technical analysis with RSI, MACD, trend, volume, and support/resistance levels");
         subtitleLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
         subtitleLabel.setForeground(TEXT_SECONDARY);
         
@@ -148,10 +179,10 @@ public class WatchlistPanel extends JPanel {
         tablePanel.setBackground(BACKGROUND_COLOR);
         tablePanel.setBorder(new EmptyBorder(0, 20, 0, 20));
         
-        // Create table model - Focus on technical analysis for buy decisions
+        // Create table model - Comprehensive technical analysis for buy/sell decisions
         String[] columnNames = {
-            "Symbol", "Name", "Current Price", "RSI", "MACD", "Trend", "Volume", 
-            "Technical Analysis", "Days Tracked"
+            "Symbol", "Name", "Price", "RSI", "MACD", "SMA Cross", "Volume", 
+            "Support/Resistance", "Trend", "Entry Quality", "Overall Signal", "Days"
         };
         
         tableModel = new DefaultTableModel(columnNames, 0) {
@@ -192,16 +223,19 @@ public class WatchlistPanel extends JPanel {
         // Set column widths
         watchlistTable.setAutoResizeMode(JTable.AUTO_RESIZE_ALL_COLUMNS);
         
-        // Set minimum column widths - Technical analysis focused
-        watchlistTable.getColumnModel().getColumn(0).setMinWidth(70);   // Symbol
-        watchlistTable.getColumnModel().getColumn(1).setMinWidth(120);  // Name
-        watchlistTable.getColumnModel().getColumn(2).setMinWidth(90);   // Current Price
-        watchlistTable.getColumnModel().getColumn(3).setMinWidth(70);   // RSI
-        watchlistTable.getColumnModel().getColumn(4).setMinWidth(80);   // MACD
-        watchlistTable.getColumnModel().getColumn(5).setMinWidth(80);   // Trend
-        watchlistTable.getColumnModel().getColumn(6).setMinWidth(90);   // Volume
-        watchlistTable.getColumnModel().getColumn(7).setMinWidth(130);  // Technical Analysis
-        watchlistTable.getColumnModel().getColumn(8).setMinWidth(70);   // Days Tracked
+        // Set minimum column widths - Comprehensive technical analysis focused
+        watchlistTable.getColumnModel().getColumn(0).setMinWidth(60);   // Symbol
+        watchlistTable.getColumnModel().getColumn(1).setMinWidth(100);  // Name
+        watchlistTable.getColumnModel().getColumn(2).setMinWidth(80);   // Price
+        watchlistTable.getColumnModel().getColumn(3).setMinWidth(60);   // RSI
+        watchlistTable.getColumnModel().getColumn(4).setMinWidth(70);   // MACD
+        watchlistTable.getColumnModel().getColumn(5).setMinWidth(80);   // SMA Cross
+        watchlistTable.getColumnModel().getColumn(6).setMinWidth(80);   // Volume
+        watchlistTable.getColumnModel().getColumn(7).setMinWidth(120);  // Support/Resistance
+        watchlistTable.getColumnModel().getColumn(8).setMinWidth(70);   // Trend
+        watchlistTable.getColumnModel().getColumn(9).setMinWidth(90);   // Entry Quality
+        watchlistTable.getColumnModel().getColumn(10).setMinWidth(100); // Overall Signal
+        watchlistTable.getColumnModel().getColumn(11).setMinWidth(50);  // Days
         
         // Enhanced header styling
         JTableHeader header = watchlistTable.getTableHeader();
@@ -227,7 +261,7 @@ public class WatchlistPanel extends JPanel {
                 if (row >= 0 && row < dataManager.getWatchlistItems().size()) {
                     WatchlistData item = dataManager.getWatchlistItems().get(row);
                     
-                    if (column == 7) { // Technical Analysis column
+                    if (column == 7 || column == 9 || column == 10) { // Support/Resistance, Entry Quality, Overall Signal columns
                         showTechnicalAnalysisDialog(item);
                     }
                 }
@@ -252,8 +286,19 @@ public class WatchlistPanel extends JPanel {
         removeItemButton.addActionListener(e -> removeSelectedItem());
         
         // Refresh button
-        refreshButton = createStyledButton("🔄 Refresh Prices", SUCCESS_COLOR);
+        refreshButton = createStyledButton("🔄 Refresh All", SUCCESS_COLOR);
         refreshButton.addActionListener(e -> refreshWatchlistData());
+        
+        // Technical Analysis refresh button
+        JButton techAnalysisButton = createStyledButton("📊 Refresh Technical Analysis", PRIMARY_COLOR);
+        techAnalysisButton.addActionListener(e -> refreshTechnicalAnalysisOnly());
+        
+        // Filter buttons for different signals
+        JButton buySignalsButton = createStyledButton("🔥 Show Buy Signals", new Color(76, 175, 80));
+        buySignalsButton.addActionListener(e -> filterBySignal("BUY"));
+        
+        JButton allSignalsButton = createStyledButton("📋 Show All", TEXT_SECONDARY);
+        allSignalsButton.addActionListener(e -> showAllItems());
         
         // Import/Export buttons
         JButton importButton = createStyledButton("📥 Import", TEXT_SECONDARY);
@@ -265,6 +310,10 @@ public class WatchlistPanel extends JPanel {
         controlPanel.add(addItemButton);
         controlPanel.add(removeItemButton);
         controlPanel.add(refreshButton);
+        controlPanel.add(techAnalysisButton);
+        controlPanel.add(Box.createHorizontalStrut(20));
+        controlPanel.add(buySignalsButton);
+        controlPanel.add(allSignalsButton);
         controlPanel.add(Box.createHorizontalStrut(20));
         controlPanel.add(importButton);
         controlPanel.add(exportButton);
@@ -330,18 +379,23 @@ public class WatchlistPanel extends JPanel {
             if (row < dataManager.getWatchlistItems().size()) {
                 WatchlistData item = dataManager.getWatchlistItems().get(row);
                 
-                // Color coding based on column
+                // Color coding based on column for enhanced technical analysis
                 switch (column) {
-                    case 3: // RSI
+                    case 3: // RSI - Momentum Indicator
                         if (item.hasTechnicalAnalysis()) {
                             double rsi = item.technicalIndicators.getRsi();
                             if (rsi < 30) {
-                                setForeground(SUCCESS_COLOR); // Oversold - Buy signal
+                                setForeground(SUCCESS_COLOR); // Oversold - Strong Buy signal
                                 setFont(getFont().deriveFont(Font.BOLD));
+                            } else if (rsi < 40) {
+                                setForeground(new Color(139, 195, 74)); // Light green - Buy signal
                             } else if (rsi > 70) {
                                 setForeground(DANGER_COLOR); // Overbought - Sell signal
+                                setFont(getFont().deriveFont(Font.BOLD));
+                            } else if (rsi > 60) {
+                                setForeground(WARNING_COLOR); // Warning - Potential sell
                             } else {
-                                setForeground(TEXT_PRIMARY);
+                                setForeground(TEXT_PRIMARY); // Neutral
                             }
                         } else {
                             setForeground(TEXT_SECONDARY);
@@ -349,14 +403,15 @@ public class WatchlistPanel extends JPanel {
                         setHorizontalAlignment(SwingConstants.CENTER);
                         break;
                         
-                    case 4: // MACD
+                    case 4: // MACD - Trend and Momentum
                         if (item.hasTechnicalAnalysis()) {
                             double macd = item.technicalIndicators.getMacd();
                             double macdSignal = item.technicalIndicators.getMacdSignal();
                             if (macd > macdSignal) {
-                                setForeground(SUCCESS_COLOR); // Bullish
+                                setForeground(SUCCESS_COLOR); // Bullish crossover
+                                setFont(getFont().deriveFont(Font.BOLD));
                             } else {
-                                setForeground(DANGER_COLOR); // Bearish
+                                setForeground(DANGER_COLOR); // Bearish crossover
                             }
                         } else {
                             setForeground(TEXT_SECONDARY);
@@ -364,7 +419,65 @@ public class WatchlistPanel extends JPanel {
                         setHorizontalAlignment(SwingConstants.CENTER);
                         break;
                         
-                    case 5: // Trend
+                    case 5: // SMA Cross - Trend Confirmation
+                        if (item.hasTechnicalAnalysis()) {
+                            double sma10 = item.technicalIndicators.getSma10();
+                            double sma50 = item.technicalIndicators.getSma50();
+                            if (sma10 > sma50) {
+                                setForeground(SUCCESS_COLOR); // Golden Cross
+                                setFont(getFont().deriveFont(Font.BOLD));
+                            } else {
+                                setForeground(DANGER_COLOR); // Death Cross
+                            }
+                        } else {
+                            setForeground(TEXT_SECONDARY);
+                        }
+                        setHorizontalAlignment(SwingConstants.CENTER);
+                        break;
+                        
+                    case 6: // Volume - Confirmation Indicator
+                        if (item.hasTechnicalAnalysis()) {
+                            boolean volumeConfirmation = item.technicalIndicators.isVolumeConfirmation();
+                            double volumeRatio = item.technicalIndicators.getVolumeRatio();
+                            if (volumeConfirmation && volumeRatio > 1.5) {
+                                setForeground(SUCCESS_COLOR); // Strong volume confirmation
+                                setFont(getFont().deriveFont(Font.BOLD));
+                            } else if (volumeConfirmation) {
+                                setForeground(new Color(139, 195, 74)); // Moderate volume
+                            } else {
+                                setForeground(TEXT_PRIMARY); // Weak volume
+                            }
+                        } else {
+                            setForeground(TEXT_SECONDARY);
+                        }
+                        setHorizontalAlignment(SwingConstants.CENTER);
+                        break;
+                        
+                    case 7: // Support/Resistance - Market Structure
+                        if (item.hasTechnicalAnalysis()) {
+                            double currentPrice = item.getCurrentPrice();
+                            double support = item.technicalIndicators.getSupportLevel();
+                            double resistance = item.technicalIndicators.getResistanceLevel();
+                            double supportDistance = Math.abs(currentPrice - support) / support;
+                            double resistanceDistance = Math.abs(resistance - currentPrice) / resistance;
+                            
+                            if (supportDistance < 0.02) { // Within 2% of support
+                                setForeground(SUCCESS_COLOR); // Near support - buy opportunity
+                                setFont(getFont().deriveFont(Font.BOLD));
+                            } else if (resistanceDistance < 0.02) { // Within 2% of resistance
+                                setForeground(DANGER_COLOR); // Near resistance - sell opportunity
+                                setFont(getFont().deriveFont(Font.BOLD));
+                            } else {
+                                setForeground(PRIMARY_COLOR); // Between levels
+                            }
+                        } else {
+                            setForeground(TEXT_SECONDARY);
+                        }
+                        setForeground(PRIMARY_COLOR); // Clickable
+                        setCursor(new Cursor(Cursor.HAND_CURSOR));
+                        break;
+                        
+                    case 8: // Trend Direction
                         if (item.hasTechnicalAnalysis()) {
                             TrendDirection trend = item.technicalIndicators.getTrend();
                             switch (trend) {
@@ -386,27 +499,59 @@ public class WatchlistPanel extends JPanel {
                         setHorizontalAlignment(SwingConstants.CENTER);
                         break;
                         
-                    case 6: // Volume
+                    case 9: // Entry Quality - clickable
                         if (item.hasTechnicalAnalysis()) {
-                            boolean volumeConfirmation = item.technicalIndicators.isVolumeConfirmation();
-                            if (volumeConfirmation) {
+                            double entryScore = item.technicalIndicators.getEntryQualityScore();
+                            if (entryScore >= 80) {
                                 setForeground(SUCCESS_COLOR);
                                 setFont(getFont().deriveFont(Font.BOLD));
+                            } else if (entryScore >= 60) {
+                                setForeground(new Color(139, 195, 74));
+                            } else if (entryScore >= 40) {
+                                setForeground(WARNING_COLOR);
                             } else {
-                                setForeground(TEXT_PRIMARY);
+                                setForeground(DANGER_COLOR);
                             }
                         } else {
                             setForeground(TEXT_SECONDARY);
                         }
-                        setHorizontalAlignment(SwingConstants.CENTER);
-                        break;
-                        
-                    case 7: // Technical Analysis - clickable
-                        setForeground(PRIMARY_COLOR);
+                        setForeground(PRIMARY_COLOR); // Clickable
                         setCursor(new Cursor(Cursor.HAND_CURSOR));
                         break;
                         
-                    case 2: // Price columns
+                    case 10: // Overall Signal - clickable
+                        if (item.hasTechnicalAnalysis()) {
+                            String signal = item.entrySignal;
+                            switch (signal) {
+                                case "STRONG_BUY":
+                                    setForeground(SUCCESS_COLOR);
+                                    setFont(getFont().deriveFont(Font.BOLD));
+                                    break;
+                                case "BUY":
+                                    setForeground(new Color(139, 195, 74));
+                                    setFont(getFont().deriveFont(Font.BOLD));
+                                    break;
+                                case "NEUTRAL":
+                                    setForeground(WARNING_COLOR);
+                                    break;
+                                case "WAIT":
+                                    setForeground(new Color(255, 152, 0));
+                                    break;
+                                case "AVOID":
+                                    setForeground(DANGER_COLOR);
+                                    setFont(getFont().deriveFont(Font.BOLD));
+                                    break;
+                                default:
+                                    setForeground(TEXT_PRIMARY);
+                            }
+                        } else {
+                            setForeground(TEXT_SECONDARY);
+                        }
+                        setForeground(PRIMARY_COLOR); // Clickable
+                        setCursor(new Cursor(Cursor.HAND_CURSOR));
+                        break;
+                        
+                    case 2: // Price column
                         setHorizontalAlignment(SwingConstants.RIGHT);
                         setForeground(TEXT_PRIMARY);
                         break;
@@ -424,6 +569,8 @@ public class WatchlistPanel extends JPanel {
      * Refresh watchlist data and update table
      */
     public void refreshWatchlistData() {
+        LoggerUtil.debug(WatchlistPanel.class, ">>> refreshWatchlistData() called");
+        
         SwingUtilities.invokeLater(() -> {
             statusLabel.setText("🔄 Refreshing...");
             statusLabel.setForeground(WARNING_COLOR);
@@ -432,6 +579,7 @@ public class WatchlistPanel extends JPanel {
         // Refresh in background thread
         new Thread(() -> {
             try {
+                LoggerUtil.debug(WatchlistPanel.class, ">>> Calling dataManager.refreshPricesAndAnalysis()");
                 dataManager.refreshPricesAndAnalysis();
                 
                 SwingUtilities.invokeLater(() -> {
@@ -452,26 +600,129 @@ public class WatchlistPanel extends JPanel {
     }
     
     /**
+     * Refresh only technical analysis without updating prices
+     */
+    private void refreshTechnicalAnalysisOnly() {
+        SwingUtilities.invokeLater(() -> {
+            statusLabel.setText("🔄 Refreshing Technical Analysis...");
+            statusLabel.setForeground(WARNING_COLOR);
+        });
+        
+        new Thread(() -> {
+            try {
+                dataManager.analyzeAllWatchlistItems().join();
+                
+                SwingUtilities.invokeLater(() -> {
+                    updateTableData();
+                    updateStats();
+                    statusLabel.setText("✅ Technical Analysis Updated");
+                    statusLabel.setForeground(SUCCESS_COLOR);
+                });
+                
+            } catch (Exception e) {
+                LoggerUtil.error(WatchlistPanel.class, "Failed to refresh technical analysis", e);
+                SwingUtilities.invokeLater(() -> {
+                    statusLabel.setText("❌ Technical Analysis Error");
+                    statusLabel.setForeground(DANGER_COLOR);
+                });
+            }
+        }).start();
+    }
+    
+    /**
+     * Filter watchlist items by signal type
+     */
+    private void filterBySignal(String signalType) {
+        // Clear existing rows
+        tableModel.setRowCount(0);
+        
+        List<WatchlistData> items = dataManager.getWatchlistItems();
+        for (WatchlistData item : items) {
+            boolean shouldShow = false;
+            
+            if (signalType.equals("BUY") && item.hasTechnicalAnalysis()) {
+                // Show items with strong buy signals based on multiple indicators
+                double rsi = item.technicalIndicators.getRsi();
+                double macd = item.technicalIndicators.getMacd();
+                double macdSignal = item.technicalIndicators.getMacdSignal();
+                boolean volumeConfirmation = item.technicalIndicators.isVolumeConfirmation();
+                String entrySignal = item.entrySignal;
+                
+                shouldShow = (rsi < 40) || // RSI buy signal
+                           (macd > macdSignal && volumeConfirmation) || // MACD with volume
+                           entrySignal.equals("STRONG_BUY") || entrySignal.equals("BUY");
+            }
+            
+            if (shouldShow) {
+                Object[] rowData = {
+                    item.symbol,
+                    item.name,
+                    priceFormat.format(item.currentPrice),
+                    getTechnicalValue(item, "RSI"),
+                    getTechnicalValue(item, "MACD"),
+                    getTechnicalValue(item, "SMA_CROSS"),
+                    getTechnicalValue(item, "VOLUME"),
+                    getTechnicalValue(item, "SUPPORT_RESISTANCE"),
+                    getTechnicalValue(item, "TREND"),
+                    getTechnicalValue(item, "ENTRY_QUALITY"),
+                    getTechnicalValue(item, "OVERALL_SIGNAL"),
+                    item.getDaysSinceAdded() + "d"
+                };
+                tableModel.addRow(rowData);
+            }
+        }
+        
+        // Update status
+        statusLabel.setText("🔍 Filtered: " + signalType + " signals (" + tableModel.getRowCount() + " items)");
+        statusLabel.setForeground(PRIMARY_COLOR);
+    }
+    
+    /**
+     * Show all watchlist items (remove filters)
+     */
+    private void showAllItems() {
+        LoggerUtil.info(WatchlistPanel.class, "showAllItems");
+        updateTableData();
+        statusLabel.setText("📋 Showing all items");
+        statusLabel.setForeground(SUCCESS_COLOR);
+    }
+    
+    /**
      * Update table with current watchlist data
      */
     private void updateTableData() {
         // Clear existing rows
+        LoggerUtil.debug(WatchlistPanel.class, ">>> Clearing existing table rows");
         tableModel.setRowCount(0);
         
         // Add watchlist items
         List<WatchlistData> items = dataManager.getWatchlistItems();
+        LoggerUtil.debug(WatchlistPanel.class, ">>> Retrieved " + items.size() + " watchlist items from dataManager");
+        
         for (WatchlistData item : items) {
+            LoggerUtil.debug(WatchlistPanel.class, ">>> Processing item: " + item.symbol + 
+                " | Price: " + item.currentPrice + 
+                " | Has Technical Analysis: " + item.hasTechnicalAnalysis());
+            
             Object[] rowData = {
                 item.symbol,
                 item.name,
                 priceFormat.format(item.currentPrice),
-                // Technical Analysis Columns
+                // Momentum Indicators
                 getTechnicalValue(item, "RSI"),
                 getTechnicalValue(item, "MACD"),
-                getTechnicalValue(item, "TREND"),
+                // Trend Indicators
+                getTechnicalValue(item, "SMA_CROSS"),
+                // Volume Indicators
                 getTechnicalValue(item, "VOLUME"),
-                // Analysis Status
-                item.getTechnicalAnalysisStatus(),
+                // Market Structure
+                getTechnicalValue(item, "SUPPORT_RESISTANCE"),
+                // Trend Direction
+                getTechnicalValue(item, "TREND"),
+                // Entry Quality Assessment
+                getTechnicalValue(item, "ENTRY_QUALITY"),
+                // Overall Signal
+                getTechnicalValue(item, "OVERALL_SIGNAL"),
                 item.getDaysSinceAdded() + "d"
             };
             tableModel.addRow(rowData);
@@ -486,18 +737,27 @@ public class WatchlistPanel extends JPanel {
         int totalItems = (Integer) stats.get("totalItems");
         long goodOpportunities = (Long) stats.get("goodEntryOpportunities");
         
-        // Count items with strong buy signals
+        // Count items with strong buy signals based on multiple indicators
         List<WatchlistData> items = dataManager.getWatchlistItems();
         long strongBuySignals = items.stream()
-            .filter(item -> item.hasTechnicalAnalysis() && item.technicalIndicators.getRsi() < 30)
+            .filter(item -> item.hasTechnicalAnalysis() && 
+                           (item.technicalIndicators.getRsi() < 30 || // Oversold RSI
+                            (item.technicalIndicators.getMacd() > item.technicalIndicators.getMacdSignal() && // MACD bullish
+                             item.technicalIndicators.isVolumeConfirmation()))) // Volume confirmation
             .count();
         
         long technicalReady = items.stream()
             .filter(item -> item.hasTechnicalAnalysis())
             .count();
         
-        String statsText = String.format("📊 Items: %d | Buy Signals: %d | Technical Ready: %d/%d", 
-                                        totalItems, strongBuySignals, technicalReady, totalItems);
+        // Count different signal strengths
+        long bullishSignals = items.stream()
+            .filter(item -> item.hasTechnicalAnalysis() && 
+                           item.technicalIndicators.getTrend().toString().equals("BULLISH"))
+            .count();
+        
+        String statsText = String.format("📊 Items: %d | Buy Signals: %d | Bullish: %d | Technical Ready: %d/%d", 
+                                        totalItems, strongBuySignals, bullishSignals, technicalReady, totalItems);
         
         watchlistStatsLabel.setText(statsText);
     }
@@ -598,25 +858,64 @@ public class WatchlistPanel extends JPanel {
     }
     
     /**
-     * Get technical indicator value for display in table
+     * Get technical indicator value for display in table with comprehensive analysis
      */
     private String getTechnicalValue(WatchlistData item, String indicator) {
+        LoggerUtil.debug(WatchlistPanel.class, "getTechnicalValue() called for " + item.symbol + 
+            " | indicator: " + indicator + " | hasTechnicalAnalysis: " + item.hasTechnicalAnalysis());
+        
         if (!item.hasTechnicalAnalysis()) {
+            LoggerUtil.debug(WatchlistPanel.class, "No technical analysis for " + item.symbol + ", returning '-'");
             return "-";
         }
         
         switch (indicator) {
             case "RSI":
                 double rsi = item.technicalIndicators.getRsi();
-                if (rsi < 30) return String.format("%.1f 🟢", rsi);
-                else if (rsi > 70) return String.format("%.1f 🔴", rsi);
-                else return String.format("%.1f", rsi);
+                String rsiSignal = "";
+                if (rsi < 30) rsiSignal = " 🔥"; // Strong buy
+                else if (rsi < 40) rsiSignal = " 🟢"; // Buy
+                else if (rsi > 70) rsiSignal = " 🔴"; // Strong sell
+                else if (rsi > 60) rsiSignal = " ⚠️"; // Warning
+                return String.format("%.1f%s", rsi, rsiSignal);
                 
             case "MACD":
                 double macd = item.technicalIndicators.getMacd();
                 double macdSignal = item.technicalIndicators.getMacdSignal();
-                String signal = macd > macdSignal ? " 🟢" : " 🔴";
-                return String.format("%.4f%s", macd, signal);
+                String signal = macd > macdSignal ? " 📈" : " 📉";
+                return String.format("%.4f%s", macd - macdSignal, signal);
+                
+            case "SMA_CROSS":
+                double sma10 = item.technicalIndicators.getSma10();
+                double sma50 = item.technicalIndicators.getSma50();
+                if (sma10 > sma50) {
+                    return "🌟 Golden"; // Golden Cross - bullish
+                } else {
+                    return "💀 Death"; // Death Cross - bearish
+                }
+                
+            case "VOLUME":
+                boolean volumeConfirmation = item.technicalIndicators.isVolumeConfirmation();
+                double volumeRatio = item.technicalIndicators.getVolumeRatio();
+                String volumeIcon = "";
+                if (volumeConfirmation && volumeRatio > 1.5) volumeIcon = " 🔥";
+                else if (volumeConfirmation) volumeIcon = " 🟢";
+                return String.format("%.1fx%s", volumeRatio, volumeIcon);
+                
+            case "SUPPORT_RESISTANCE":
+                double currentPrice = item.getCurrentPrice();
+                double support = item.technicalIndicators.getSupportLevel();
+                double resistance = item.technicalIndicators.getResistanceLevel();
+                double supportDistance = Math.abs(currentPrice - support) / support * 100;
+                double resistanceDistance = Math.abs(resistance - currentPrice) / resistance * 100;
+                
+                if (supportDistance < 2.0) {
+                    return String.format("S: %.1f%%", supportDistance);
+                } else if (resistanceDistance < 2.0) {
+                    return String.format("R: %.1f%%", resistanceDistance);
+                } else {
+                    return "📊 Mid";
+                }
                 
             case "TREND":
                 TrendDirection trend = item.technicalIndicators.getTrend();
@@ -627,11 +926,25 @@ public class WatchlistPanel extends JPanel {
                     default: return "❓ UNKNOWN";
                 }
                 
-            case "VOLUME":
-                boolean volumeConfirmation = item.technicalIndicators.isVolumeConfirmation();
-                double volumeRatio = item.technicalIndicators.getVolumeRatio();
-                String volumeIcon = volumeConfirmation ? " 🟢" : "";
-                return String.format("%.1fx%s", volumeRatio, volumeIcon);
+            case "ENTRY_QUALITY":
+                double entryScore = item.technicalIndicators.getEntryQualityScore();
+                String qualityIcon = "";
+                if (entryScore >= 80) qualityIcon = " 🔥";
+                else if (entryScore >= 60) qualityIcon = " 🟢";
+                else if (entryScore >= 40) qualityIcon = " ⚠️";
+                else qualityIcon = " 🔴";
+                return String.format("%.0f%s", entryScore, qualityIcon);
+                
+            case "OVERALL_SIGNAL":
+                String entrySignal = item.entrySignal;
+                switch (entrySignal) {
+                    case "STRONG_BUY": return "🔥 STRONG BUY";
+                    case "BUY": return "🟢 BUY";
+                    case "NEUTRAL": return "⚖️ NEUTRAL";
+                    case "WAIT": return "⏳ WAIT";
+                    case "AVOID": return "🔴 AVOID";
+                    default: return "❓ UNKNOWN";
+                }
                 
             default:
                 return "-";

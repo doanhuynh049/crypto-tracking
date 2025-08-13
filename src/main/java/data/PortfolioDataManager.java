@@ -1,5 +1,6 @@
 package data;
 
+import cache.AiResponseCache;
 import model.CryptoData;
 import service.AiAdviceService;
 import service.TechnicalAnalysisService;
@@ -426,8 +427,8 @@ public class PortfolioDataManager {
                     updateSingleCryptoInTable(crypto, index);
                 });
                 
-                // Wait a bit before next request (1 second delay)
-                Timer delayTimer = new Timer(1000, e -> {
+                // Wait a bit before next request (15 second delay to prevent rate limiting)
+                Timer delayTimer = new Timer(15000, e -> {
                     fetchTechnicalAnalysisSequentially(index + 1);
                 });
                 delayTimer.setRepeats(false);
@@ -444,7 +445,7 @@ public class PortfolioDataManager {
                 });
                 
                 // Continue with next crypto even if this one failed (shorter delay for errors)
-                Timer delayTimer = new Timer(500, e -> {
+                Timer delayTimer = new Timer(5000, e -> {
                     fetchTechnicalAnalysisSequentially(index + 1);
                 });
                 delayTimer.setRepeats(false);
@@ -458,6 +459,14 @@ public class PortfolioDataManager {
      * Refresh AI advice for all cryptocurrencies (called separately from price refresh)
      */
     public void refreshAiAdvice() {
+        refreshAiAdvice(false); // Default to using cache
+    }
+    
+    /**
+     * Refresh AI advice for all cryptocurrencies with cache control
+     * @param forceRefresh True to bypass cache and get fresh AI responses
+     */
+    public void refreshAiAdvice(boolean forceRefresh) {
         // Reset all cryptocurrencies to LOADING state before starting AI refresh
         for (CryptoData crypto : cryptoList) {
             crypto.aiStatus = "LOADING";
@@ -466,7 +475,10 @@ public class PortfolioDataManager {
         }
         
         if (uiBuilder != null) {
-            uiBuilder.getStatusLabel().setText("📊 Portfolio Status: Updating AI advice...");
+            String statusMessage = forceRefresh ? 
+                "📊 Portfolio Status: Force refreshing AI advice..." : 
+                "📊 Portfolio Status: Updating AI advice...";
+            uiBuilder.getStatusLabel().setText(statusMessage);
             // Initialize AI status label for progress tracking - all cryptos are now loading
             uiBuilder.updateAiStatusLabel(cryptoList.size(), 0, 0, 0, cryptoList.size());
         }
@@ -474,7 +486,7 @@ public class PortfolioDataManager {
         SwingWorker<Void, Void> worker = new SwingWorker<Void, Void>() {
             @Override
             protected Void doInBackground() throws Exception {
-                fetchAiAdvice();
+                fetchAiAdvice(forceRefresh);
                 return null;
             }
             
@@ -491,11 +503,12 @@ public class PortfolioDataManager {
 
     /**
      * Fetch AI advice for all cryptocurrencies sequentially to avoid rate limiting
+     * @param forceRefresh True to bypass cache and get fresh AI responses
      */
-    private void fetchAiAdvice() {
+    private void fetchAiAdvice(boolean forceRefresh) {
         try {
             // Fetch AI advice sequentially with delays to respect API rate limits
-            fetchAiAdviceSequentially(0);
+            fetchAiAdviceSequentially(0, forceRefresh);
         } catch (Exception e) {
             System.err.println("Error initiating AI advice fetch: " + e.getMessage());
         }
@@ -503,8 +516,10 @@ public class PortfolioDataManager {
     
     /**
      * Fetch AI advice sequentially for each cryptocurrency with delay
+     * @param index The index of the cryptocurrency to process
+     * @param forceRefresh True to bypass cache and get fresh AI responses
      */
-    private void fetchAiAdviceSequentially(int index) {
+    private void fetchAiAdviceSequentially(int index, boolean forceRefresh) {
         if (index >= cryptoList.size()) {
             // All cryptocurrencies processed, update UI
             SwingUtilities.invokeLater(() -> {
@@ -530,44 +545,73 @@ public class PortfolioDataManager {
             }
         });
         
-        AiAdviceService.getAdviceAsync(crypto)
-            .thenAccept(advice -> {
-                System.out.println("Successfully got AI advice for " + crypto.symbol + ": " + advice);
-                
-                // Update table for this specific crypto
-                SwingUtilities.invokeLater(() -> {
-                    updateSingleCryptoInTable(crypto, index);
-                    // Update AI status progress after completion
-                    updateAiStatusProgress();
-                });
-                
-                // Wait a bit before next request to respect rate limits (2 seconds delay)
-                Timer delayTimer = new Timer(2000, e -> {
-                    fetchAiAdviceSequentially(index + 1);
-                });
-                delayTimer.setRepeats(false);
-                delayTimer.start();
-            })
-            .exceptionally(throwable -> {
-                System.err.println("Failed to get AI advice for " + crypto.symbol + ": " + throwable.getMessage());
-                // Set error status
-                crypto.setAiAdviceError();
-                
-                SwingUtilities.invokeLater(() -> {
-                    updateSingleCryptoInTable(crypto, index);
-                    // Update AI status progress after error
-                    updateAiStatusProgress();
-                });
-                
-                // Continue with next crypto even if this one failed (shorter delay for errors)
-                Timer delayTimer = new Timer(1000, e -> {
-                    fetchAiAdviceSequentially(index + 1);
-                });
-                delayTimer.setRepeats(false);
-                delayTimer.start();
-                
-                return null;
+        // Check cache first before making API call (unless forced refresh)
+        String cachedAdvice = null;
+        if (!forceRefresh) {
+            cachedAdvice = AiResponseCache.getCachedSimpleAdvice(crypto.symbol);
+        } else {
+            // Clear cache for forced refresh
+            AiResponseCache.clearSimpleAdviceCache(crypto.symbol);
+        }
+        
+        if (cachedAdvice != null && !cachedAdvice.trim().isEmpty()) {
+            System.out.println("Using cached AI advice for " + crypto.symbol + ": " + cachedAdvice);
+            
+            // Set cached advice with appropriate status
+            crypto.setAiAdviceFromCache(cachedAdvice); // Using AI_CACHE status for cached data
+            
+            // Update table for this specific crypto
+            SwingUtilities.invokeLater(() -> {
+                updateSingleCryptoInTable(crypto, index);
+                // Update AI status progress after completion
+                updateAiStatusProgress();
             });
+            
+            // Continue with next crypto immediately (no delay needed for cached data)
+            SwingUtilities.invokeLater(() -> {
+                fetchAiAdviceSequentially(index + 1, forceRefresh);
+            });
+        } else {
+            // No cache available, make API call
+            AiAdviceService.getAdviceAsync(crypto)
+                .thenAccept(advice -> {
+                    System.out.println("Successfully got AI advice for " + crypto.symbol + ": " + advice);
+                    
+                    // Update table for this specific crypto
+                    SwingUtilities.invokeLater(() -> {
+                        updateSingleCryptoInTable(crypto, index);
+                        // Update AI status progress after completion
+                        updateAiStatusProgress();
+                    });
+                    
+                    // Wait a bit before next request to respect rate limits (2 seconds delay)
+                    Timer delayTimer = new Timer(2000, e -> {
+                        fetchAiAdviceSequentially(index + 1, forceRefresh);
+                    });
+                    delayTimer.setRepeats(false);
+                    delayTimer.start();
+                })
+                .exceptionally(throwable -> {
+                    System.err.println("Failed to get AI advice for " + crypto.symbol + ": " + throwable.getMessage());
+                    // Set error status
+                    crypto.setAiAdviceError();
+                    
+                    SwingUtilities.invokeLater(() -> {
+                        updateSingleCryptoInTable(crypto, index);
+                        // Update AI status progress after error
+                        updateAiStatusProgress();
+                    });
+                    
+                    // Continue with next crypto even if this one failed (shorter delay for errors)
+                    Timer delayTimer = new Timer(1000, e -> {
+                        fetchAiAdviceSequentially(index + 1, forceRefresh);
+                    });
+                    delayTimer.setRepeats(false);
+                    delayTimer.start();
+                    
+                    return null;
+                });
+        }
     }
     
     /**

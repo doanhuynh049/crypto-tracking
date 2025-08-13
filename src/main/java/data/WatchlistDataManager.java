@@ -23,9 +23,26 @@ public class WatchlistDataManager {
     private List<WatchlistData> watchlist;
     private final Object lock = new Object();
     
+    // Callback interface for UI updates
+    public interface TechnicalAnalysisCallback {
+        void onTechnicalAnalysisComplete(WatchlistData item);
+        void onAllAnalysisComplete();
+    }
+    
+    private TechnicalAnalysisCallback uiCallback;
+
     public WatchlistDataManager() {
         this.watchlist = new ArrayList<>();
+        LoggerUtil.debug(WatchlistDataManager.class, "Created empty watchlist, now loading from file...");
         loadWatchlist();
+    }
+    
+    /**
+     * Set callback for UI updates when technical analysis completes
+     */
+    public void setTechnicalAnalysisCallback(TechnicalAnalysisCallback callback) {
+        this.uiCallback = callback;
+        LoggerUtil.debug(WatchlistDataManager.class, "UI callback set for technical analysis updates");
     }
     
     /**
@@ -110,6 +127,7 @@ public class WatchlistDataManager {
      */
     public List<WatchlistData> getWatchlist() {
         synchronized (lock) {
+            LoggerUtil.debug(WatchlistDataManager.class, ">>> getWatchlist() called, watchlist.size() = " + watchlist.size());
             return new ArrayList<>(watchlist);
         }
     }
@@ -193,11 +211,24 @@ public class WatchlistDataManager {
                     LoggerUtil.info(WatchlistDataManager.class, 
                         String.format("Technical analysis completed for %s - Score: %.1f", 
                             watchlistItem.getSymbol(), watchlistItem.getEntryOpportunityScore()));
+                    
+                    // Notify UI if callback is set
+                    if (uiCallback != null) {
+                        uiCallback.onTechnicalAnalysisComplete(watchlistItem);
+                    }
                 }
             })
             .exceptionally(ex -> {
                 LoggerUtil.error(WatchlistDataManager.class, 
                     "Failed to analyze " + watchlistItem.getSymbol(), ex);
+                watchlistItem.setTechnicalAnalysisError();
+                
+                // Still notify UI even on error to update the display
+                if (uiCallback != null) {
+                    LoggerUtil.debug(WatchlistDataManager.class, 
+                        "Calling UI callback for " + watchlistItem.getSymbol() + " technical analysis error");
+                    uiCallback.onTechnicalAnalysisComplete(watchlistItem);
+                }
                 return null;
             });
     }
@@ -219,6 +250,11 @@ public class WatchlistDataManager {
                 saveWatchlist();
                 LoggerUtil.info(WatchlistDataManager.class, 
                     "Completed analysis for all " + watchlist.size() + " watchlist items");
+                
+                // Notify UI that all analysis is complete
+                if (uiCallback != null) {
+                    uiCallback.onAllAnalysisComplete();
+                }
             });
     }
     
@@ -372,10 +408,13 @@ public class WatchlistDataManager {
      * Load watchlist from file
      */
     private void loadWatchlist() {
+        LoggerUtil.debug(WatchlistDataManager.class, ">>> loadWatchlist() called");
         try {
             File dataFile = new File(WATCHLIST_FILE);
+            LoggerUtil.debug(WatchlistDataManager.class, ">>> Checking for watchlist file: " + WATCHLIST_FILE);
             
             if (dataFile.exists()) {
+                LoggerUtil.debug(WatchlistDataManager.class, ">>> Watchlist file exists, loading data...");
                 try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(dataFile))) {
                     @SuppressWarnings("unchecked")
                     List<WatchlistData> loaded = (List<WatchlistData>) ois.readObject();
@@ -390,16 +429,18 @@ public class WatchlistDataManager {
                 }
             } else {
                 LoggerUtil.info(WatchlistDataManager.class, 
-                    "No existing watchlist file found, starting with empty watchlist");
+                    ">>> No existing watchlist file found, starting with empty watchlist");
             }
             
         } catch (Exception e) {
             LoggerUtil.error(WatchlistDataManager.class, "Failed to load watchlist", e);
             
             // Try to load backup
+            LoggerUtil.debug(WatchlistDataManager.class, ">>> Attempting to load backup file...");
             try {
                 File backupFile = new File(BACKUP_FILE);
                 if (backupFile.exists()) {
+                    LoggerUtil.debug(WatchlistDataManager.class, ">>> Backup file exists, loading...");
                     try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(backupFile))) {
                         @SuppressWarnings("unchecked")
                         List<WatchlistData> loaded = (List<WatchlistData>) ois.readObject();
@@ -472,16 +513,37 @@ public class WatchlistDataManager {
      * Refresh prices and analysis for all items
      */
     public void refreshPricesAndAnalysis() {
+        LoggerUtil.debug(WatchlistDataManager.class, ">>> refreshPricesAndAnalysis() called");
+        
+        List<CompletableFuture<Void>> analysisResults = new ArrayList<>();
+        
         synchronized (lock) {
             for (WatchlistData item : watchlist) {
                 // Update entry opportunity based on current data
                 item.updateEntryOpportunity();
                 
-                // Refresh technical analysis
-                analyzeWatchlistItem(item);
+                // Refresh technical analysis and collect futures
+                analysisResults.add(analyzeWatchlistItem(item));
             }
-            saveWatchlistData();
         }
+        
+        // Wait for all analysis to complete, then save
+        CompletableFuture.allOf(analysisResults.toArray(new CompletableFuture[0]))
+            .thenRun(() -> {
+                saveWatchlistData();
+                LoggerUtil.info(WatchlistDataManager.class, 
+                    "Completed refresh for all " + watchlist.size() + " items");
+                
+                // Notify UI that all refresh is complete
+                if (uiCallback != null) {
+                    uiCallback.onAllAnalysisComplete();
+                }
+            })
+            .exceptionally(ex -> {
+                LoggerUtil.error(WatchlistDataManager.class, "Error during refresh", ex);
+                saveWatchlistData(); // Save anyway
+                return null;
+            });
     }
     
     /**

@@ -172,6 +172,16 @@ public class CryptoData implements Serializable {
     }
     
     /**
+     * Set AI advice from cache with AI_CACHE status
+     */
+    public void setAiAdviceFromCache(String advice) {
+        this.aiAdvice = advice;
+        this.isAiGenerated = false;
+        this.aiStatus = "AI_CACHE";
+        this.lastAiUpdate = System.currentTimeMillis();
+    }
+    
+    /**
      * Get AI advice with status indicator
      */
     public String getAiAdviceWithStatus() {
@@ -193,6 +203,8 @@ public class CryptoData implements Serializable {
             return "📊 " + aiAdvice;
         } else if (aiStatus.equals("ERROR")) {
             return "❌ " + aiAdvice;
+        } else if (aiStatus.equals("AI_CACHE")) {
+            return "💾 " + aiAdvice; // Indicate cached advice
         }
         return aiAdvice;
     }

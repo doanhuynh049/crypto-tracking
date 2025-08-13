@@ -47,7 +47,7 @@ run {
         println "🚀 Starting Crypto Portfolio Tracker..."
     }
     
-    finalizedBy {
+    doLast {
         delete buildDir
         println "🧹 Cleaned up build files"
     }

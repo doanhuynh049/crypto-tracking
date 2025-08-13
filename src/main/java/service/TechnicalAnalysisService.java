@@ -13,6 +13,10 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
+import java.net.URL;
+import java.net.HttpURLConnection;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 
 /**
  * Technical Analysis Service for cryptocurrency entry techniques
@@ -39,8 +43,8 @@ public class TechnicalAnalysisService {
                 
                 TechnicalIndicators indicators = new TechnicalIndicators();
                 
-                // Generate sample price history (in real implementation, fetch from API)
-                List<PricePoint> priceHistory = generateSamplePriceHistory(crypto.currentPrice);
+                // Fetch real price history from CoinGecko API
+                List<PricePoint> priceHistory = fetchRealPriceHistory(crypto.id, crypto.currentPrice);
                 indicators.setPriceHistory(priceHistory);
                 
                 // Calculate technical indicators
@@ -49,8 +53,11 @@ public class TechnicalAnalysisService {
                 calculateMovingAverages(indicators, priceHistory);
                 calculateSupportResistance(indicators, priceHistory);
                 calculateFibonacciLevels(indicators, priceHistory);
-                calculateVolumeAnalysis(indicators, priceHistory);
+                calculateVolumeAnalysis(indicators, priceHistory, crypto.id);
                 calculateTrendAnalysis(indicators, priceHistory);
+                
+                // Enhance with additional market data from API
+                enhanceWithMarketData(indicators, crypto.id);
                 
                 // Generate entry signals
                 generateEntrySignals(indicators, crypto);
@@ -195,28 +202,38 @@ public class TechnicalAnalysisService {
     }
     
     /**
-     * Calculate Volume Analysis
+     * Calculate Volume Analysis with real volume data when available
      */
-    private static void calculateVolumeAnalysis(TechnicalIndicators indicators, List<PricePoint> priceHistory) {
+    private static void calculateVolumeAnalysis(TechnicalIndicators indicators, List<PricePoint> priceHistory, String cryptoId) {
         if (priceHistory.size() < VOLUME_PERIOD) return;
         
-        // Calculate average volume
+        // Calculate average volume from historical data
         double avgVolume = priceHistory.stream()
-            .limit(VOLUME_PERIOD)
+            .skip(Math.max(0, priceHistory.size() - VOLUME_PERIOD))
             .mapToDouble(PricePoint::getVolume)
             .average()
             .orElse(0.0);
         
         indicators.setAverageVolume20(avgVolume);
         
-        // Current volume (latest)
-        if (!priceHistory.isEmpty()) {
-            double currentVolume = priceHistory.get(priceHistory.size() - 1).getVolume();
-            indicators.setCurrentVolume(currentVolume);
-            
-            // Volume confirmation (current volume > 1.5x average)
-            indicators.setVolumeConfirmation(currentVolume > avgVolume * 1.5);
+        // Try to get real current volume from API
+        double realCurrentVolume = fetchCurrentVolume(cryptoId);
+        
+        if (realCurrentVolume > 0) {
+            // Use real volume data
+            indicators.setCurrentVolume(realCurrentVolume);
+            LoggerUtil.debug(TechnicalAnalysisService.class, 
+                "Using real volume data for " + cryptoId + ": $" + String.format("%.0f", realCurrentVolume));
+        } else {
+            // Fallback to latest historical volume
+            if (!priceHistory.isEmpty()) {
+                double currentVolume = priceHistory.get(priceHistory.size() - 1).getVolume();
+                indicators.setCurrentVolume(currentVolume);
+            }
         }
+        
+        // Volume confirmation (current volume > 1.5x average)
+        indicators.setVolumeConfirmation(indicators.getCurrentVolume() > avgVolume * 1.5);
     }
     
     /**
@@ -432,8 +449,307 @@ public class TechnicalAnalysisService {
     }
     
     /**
+     * Fetch real price history from CoinGecko API
+     * @param cryptoId The CoinGecko ID of the cryptocurrency
+     * @param currentPrice Current price for validation
+     * @return List of PricePoint containing real OHLC data
+     */
+    private static List<PricePoint> fetchRealPriceHistory(String cryptoId, double currentPrice) {
+        try {
+            // Fix common crypto ID mapping issues
+            String correctedId = mapCryptoId(cryptoId);
+            
+            LoggerUtil.info(TechnicalAnalysisService.class, 
+                "Fetching real OHLC data for " + correctedId + " from CoinGecko API");
+            
+            // Add rate limiting delay to prevent 429 errors
+            Thread.sleep(2000); // 2 second delay between requests
+            
+            // CoinGecko OHLC API endpoint for 30 days of data
+            String apiUrl = "https://api.coingecko.com/api/v3/coins/" + correctedId + "/ohlc?vs_currency=usd&days=30";
+            
+            URL url = new URL(apiUrl);
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod("GET");
+            connection.setRequestProperty("User-Agent", "CryptoPortfolio/1.0");
+            connection.setConnectTimeout(15000); // Increased timeout
+            connection.setReadTimeout(15000);
+            
+            int responseCode = connection.getResponseCode();
+            LoggerUtil.debug(TechnicalAnalysisService.class, 
+                "API Response Code for " + cryptoId + ": " + responseCode);
+            
+            if (responseCode == 200) {
+                BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+                StringBuilder response = new StringBuilder();
+                String line;
+                
+                while ((line = reader.readLine()) != null) {
+                    response.append(line);
+                }
+                reader.close();
+                
+                return parseOHLCResponse(response.toString(), currentPrice);
+                
+            } else if (responseCode == 429) {
+                LoggerUtil.warning(TechnicalAnalysisService.class, 
+                    "Rate limited for " + cryptoId + " (429). Using fallback data.");
+                return generateSamplePriceHistory(currentPrice); // Fallback to sample data
+            } else if (responseCode == 404) {
+                LoggerUtil.warning(TechnicalAnalysisService.class, 
+                    "Crypto ID not found: " + cryptoId + " (404). Check ID mapping. Using fallback data.");
+                return generateSamplePriceHistory(currentPrice); // Fallback to sample data
+            } else {
+                LoggerUtil.warning(TechnicalAnalysisService.class, 
+                    "Failed to fetch OHLC data for " + cryptoId + ", response code: " + responseCode);
+                return generateSamplePriceHistory(currentPrice); // Fallback to sample data
+            }
+            
+        } catch (Exception e) {
+            LoggerUtil.error(TechnicalAnalysisService.class, 
+                "Error fetching real OHLC data for " + cryptoId + ": " + e.getMessage(), e);
+            return generateSamplePriceHistory(currentPrice); // Fallback to sample data
+        }
+    }
+    
+    /**
+     * Parse OHLC response from CoinGecko API
+     * @param jsonResponse JSON response string from API
+     * @param currentPrice Current price for validation
+     * @return List of PricePoint objects
+     */
+    private static List<PricePoint> parseOHLCResponse(String jsonResponse, double currentPrice) {
+        List<PricePoint> priceHistory = new ArrayList<>();
+        
+        try {
+            org.json.JSONArray jsonArray = new org.json.JSONArray(jsonResponse);
+            
+            LoggerUtil.debug(TechnicalAnalysisService.class, 
+                "Parsing " + jsonArray.length() + " OHLC data points");
+            
+            for (int i = 0; i < jsonArray.length(); i++) {
+                org.json.JSONArray dataPoint = jsonArray.getJSONArray(i);
+                
+                if (dataPoint.length() >= 5) {
+                    long timestamp = dataPoint.getLong(0);
+                    double open = dataPoint.getDouble(1);
+                    double high = dataPoint.getDouble(2);
+                    double low = dataPoint.getDouble(3);
+                    double close = dataPoint.getDouble(4);
+                    
+                    // Generate realistic volume based on price (CoinGecko OHLC doesn't include volume)
+                    double volume = generateRealisticVolume(close);
+                    
+                    priceHistory.add(new PricePoint(timestamp, open, high, low, close, volume));
+                }
+            }
+            
+            // Ensure we have data and last price is reasonable
+            if (!priceHistory.isEmpty()) {
+                LoggerUtil.info(TechnicalAnalysisService.class, 
+                    "Successfully parsed " + priceHistory.size() + " real OHLC data points");
+                
+                // Validate last price is close to current price (within 10%)
+                PricePoint lastPoint = priceHistory.get(priceHistory.size() - 1);
+                double priceDifference = Math.abs(lastPoint.getClose() - currentPrice) / currentPrice;
+                
+                if (priceDifference > 0.10) {
+                    LoggerUtil.warning(TechnicalAnalysisService.class, 
+                        "Last OHLC price differs significantly from current price. Adjusting...");
+                    
+                    // Adjust the last data point to match current price
+                    priceHistory.set(priceHistory.size() - 1, new PricePoint(
+                        lastPoint.getTimestamp(),
+                        lastPoint.getOpen(),
+                        Math.max(lastPoint.getHigh(), currentPrice),
+                        Math.min(lastPoint.getLow(), currentPrice),
+                        currentPrice,
+                        lastPoint.getVolume()
+                    ));
+                }
+                
+                return priceHistory;
+            }
+            
+        } catch (Exception e) {
+            LoggerUtil.error(TechnicalAnalysisService.class, 
+                "Error parsing OHLC JSON response: " + e.getMessage(), e);
+        }
+        
+        // Return empty list if parsing fails
+        LoggerUtil.warning(TechnicalAnalysisService.class, 
+            "Failed to parse OHLC data, returning empty list");
+        return new ArrayList<>();
+    }
+    
+    /**
+     * Enhance indicators with additional market data from API
+     * @param indicators The technical indicators to enhance
+     * @param cryptoId The CoinGecko ID
+     */
+    private static void enhanceWithMarketData(TechnicalIndicators indicators, String cryptoId) {
+        try {
+            // Fix crypto ID mapping
+            String correctedId = mapCryptoId(cryptoId);
+            
+            // Add delay to prevent rate limiting
+            Thread.sleep(300);
+            
+            // Get additional market metrics like market cap, price change percentages
+            String apiUrl = "https://api.coingecko.com/api/v3/coins/" + correctedId + 
+                          "?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false";
+            
+            URL url = new URL(apiUrl);
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod("GET");
+            connection.setRequestProperty("User-Agent", "CryptoPortfolio/1.0");
+            connection.setConnectTimeout(5000);
+            connection.setReadTimeout(5000);
+            
+            if (connection.getResponseCode() == 200) {
+                BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+                StringBuilder response = new StringBuilder();
+                String line;
+                
+                while ((line = reader.readLine()) != null) {
+                    response.append(line);
+                }
+                reader.close();
+                
+                org.json.JSONObject jsonResponse = new org.json.JSONObject(response.toString());
+                if (jsonResponse.has("market_data")) {
+                    org.json.JSONObject marketData = jsonResponse.getJSONObject("market_data");
+                    
+                    // Get price change percentages for trend confirmation
+                    if (marketData.has("price_change_percentage_7d")) {
+                        double weeklyChange = marketData.getDouble("price_change_percentage_7d");
+                        
+                        // Use weekly change to enhance trend analysis
+                        if (weeklyChange > 5.0 && indicators.getTrend() == TrendDirection.NEUTRAL) {
+                            indicators.setTrend(TrendDirection.BULLISH);
+                            LoggerUtil.debug(TechnicalAnalysisService.class, 
+                                "Enhanced trend to BULLISH based on 7d price change: " + weeklyChange + "%");
+                        } else if (weeklyChange < -5.0 && indicators.getTrend() == TrendDirection.NEUTRAL) {
+                            indicators.setTrend(TrendDirection.BEARISH);
+                            LoggerUtil.debug(TechnicalAnalysisService.class, 
+                                "Enhanced trend to BEARISH based on 7d price change: " + weeklyChange + "%");
+                        }
+                    }
+                    
+                    // Get market cap for additional context
+                    if (marketData.has("market_cap") && marketData.getJSONObject("market_cap").has("usd")) {
+                        double marketCap = marketData.getJSONObject("market_cap").getDouble("usd");
+                        LoggerUtil.debug(TechnicalAnalysisService.class, 
+                            "Market cap for " + cryptoId + ": $" + String.format("%.0f", marketCap));
+                    }
+                }
+            }
+            
+        } catch (Exception e) {
+            LoggerUtil.debug(TechnicalAnalysisService.class, 
+                "Could not enhance with market data for " + cryptoId + ": " + e.getMessage());
+        }
+    }
+
+    /**
+     * Fetch enhanced market data including volume from CoinGecko
+     * @param cryptoId The CoinGecko ID of the cryptocurrency
+     * @return Additional market data for volume analysis
+     */
+    private static double fetchCurrentVolume(String cryptoId) {
+        try {
+            // Fix crypto ID mapping
+            String correctedId = mapCryptoId(cryptoId);
+            
+            // Add small delay to prevent rate limiting
+            Thread.sleep(500);
+            
+            // CoinGecko market data API for current volume
+            String apiUrl = "https://api.coingecko.com/api/v3/coins/" + correctedId + 
+                          "?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false";
+            
+            URL url = new URL(apiUrl);
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod("GET");
+            connection.setRequestProperty("User-Agent", "CryptoPortfolio/1.0");
+            connection.setConnectTimeout(5000);
+            connection.setReadTimeout(5000);
+            
+            if (connection.getResponseCode() == 200) {
+                BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+                StringBuilder response = new StringBuilder();
+                String line;
+                
+                while ((line = reader.readLine()) != null) {
+                    response.append(line);
+                }
+                reader.close();
+                
+                org.json.JSONObject jsonResponse = new org.json.JSONObject(response.toString());
+                if (jsonResponse.has("market_data")) {
+                    org.json.JSONObject marketData = jsonResponse.getJSONObject("market_data");
+                    if (marketData.has("total_volume") && marketData.getJSONObject("total_volume").has("usd")) {
+                        return marketData.getJSONObject("total_volume").getDouble("usd");
+                    }
+                }
+            }
+            
+        } catch (Exception e) {
+            LoggerUtil.debug(TechnicalAnalysisService.class, 
+                "Could not fetch volume data for " + cryptoId + ": " + e.getMessage());
+        }
+        
+        return 0.0; // Return 0 if volume data unavailable
+    }
+
+    /**
+     * Map common crypto IDs to correct CoinGecko IDs
+     * @param cryptoId Original crypto ID
+     * @return Corrected CoinGecko ID
+     */
+    private static String mapCryptoId(String cryptoId) {
+        switch (cryptoId.toLowerCase()) {
+            case "btc": return "bitcoin";
+            case "eth": return "ethereum";
+            case "bnb": return "binancecoin";
+            case "ada": return "cardano";
+            case "sol": return "solana";
+            case "avax": return "avalanche-2";
+            case "link": return "chainlink";
+            case "ltc": return "litecoin";
+            case "arb": return "arbitrum";
+            case "op": return "optimism";
+            case "fet": return "fetch-ai";
+            case "rndr": return "render-token";
+            case "sui": return "sui";
+            case "c": return "celsius-degree-token"; // Or might be another token
+            default: return cryptoId; // Return original if no mapping found
+        }
+    }
+
+    /**
+     * Generate realistic volume based on price level
+     * @param price The price level
+     * @return Estimated trading volume
+     */
+    private static double generateRealisticVolume(double price) {
+        // Estimate volume based on price range (higher priced cryptos typically have lower volume)
+        if (price > 10000) {  // Bitcoin-like prices
+            return 500000 + (Math.random() * 2000000);
+        } else if (price > 1000) {  // ETH-like prices
+            return 1000000 + (Math.random() * 5000000);
+        } else if (price > 100) {  // BNB-like prices
+            return 2000000 + (Math.random() * 10000000);
+        } else if (price > 1) {  // SOL-like prices
+            return 5000000 + (Math.random() * 20000000);
+        } else {  // Small cap altcoins
+            return 10000000 + (Math.random() * 50000000);
+        }
+    }
+
+    /**
      * Generate sample price history for demonstration
-     * In real implementation, this would fetch from cryptocurrency API
+     * This is now a fallback method when API calls fail
      */
     private static List<PricePoint> generateSamplePriceHistory(double currentPrice) {
         List<PricePoint> history = new ArrayList<>();

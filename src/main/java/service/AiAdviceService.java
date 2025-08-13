@@ -46,6 +46,9 @@ public class AiAdviceService {
                 String advice = getAdvice(crypto);
                 if (USE_AI_API) {
                     crypto.setAiAdviceFromAI(advice);
+                    // Cache the successful AI response
+                    AiResponseCache.cacheSimpleAdvice(crypto.symbol, advice);
+                    LoggerUtil.info(AiAdviceService.class, "Successfully cached AI advice for " + crypto.symbol + ": " + advice);
                 } else {
                     crypto.setAiAdviceFromFallback(advice);
                 }
@@ -70,6 +73,13 @@ public class AiAdviceService {
             return getSimpleAdvice(crypto);
         }
         
+        // Check cache first for AI responses
+        String cachedAdvice = AiResponseCache.getCachedSimpleAdvice(crypto.symbol);
+        if (cachedAdvice != null) {
+            LoggerUtil.info(AiAdviceService.class, "Using cached AI advice for " + crypto.symbol + ": " + cachedAdvice);
+            return cachedAdvice;
+        }
+        
         try {
             // Create a prompt for the AI
             String prompt = createPrompt(crypto);
@@ -81,7 +91,13 @@ public class AiAdviceService {
             String advice = parseResponse(response);
             
             // Ensure it's exactly three words
-            return formatToThreeWords(advice);
+            String formattedAdvice = formatToThreeWords(advice);
+            
+            // Cache the successful AI response
+            AiResponseCache.cacheSimpleAdvice(crypto.symbol, formattedAdvice);
+            LoggerUtil.info(AiAdviceService.class, "Successfully got and cached AI advice for " + crypto.symbol + ": " + formattedAdvice);
+            
+            return formattedAdvice;
             
         } catch (Exception e) {
             System.err.println("AI API unavailable for " + crypto.symbol + ", using rule-based advice: " + e.getMessage());
@@ -373,13 +389,8 @@ public class AiAdviceService {
         if (cachedAdvice != null) {
             return cachedAdvice;
         }
-        
         // Generate advice based on current data
         String advice = generateSimpleAdvice(crypto);
-        
-        // Cache the advice
-        AiResponseCache.cacheSimpleAdvice(crypto.symbol, advice);
-        
         return advice;
     }
     
