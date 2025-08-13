@@ -493,22 +493,22 @@ public class TechnicalAnalysisService {
                 
             } else if (responseCode == 429) {
                 LoggerUtil.warning(TechnicalAnalysisService.class, 
-                    "Rate limited for " + cryptoId + " (429). Using fallback data.");
-                return generateSamplePriceHistory(currentPrice); // Fallback to sample data
+                    "Rate limited for " + cryptoId + " (429). No fallback data available.");
+                return new ArrayList<>();
             } else if (responseCode == 404) {
                 LoggerUtil.warning(TechnicalAnalysisService.class, 
-                    "Crypto ID not found: " + cryptoId + " (404). Check ID mapping. Using fallback data.");
-                return generateSamplePriceHistory(currentPrice); // Fallback to sample data
+                    "Crypto ID not found: " + cryptoId + " (404). Check ID mapping. No fallback data available.");
+                return new ArrayList<>();
             } else {
                 LoggerUtil.warning(TechnicalAnalysisService.class, 
                     "Failed to fetch OHLC data for " + cryptoId + ", response code: " + responseCode);
-                return generateSamplePriceHistory(currentPrice); // Fallback to sample data
+                return new ArrayList<>();
             }
             
         } catch (Exception e) {
             LoggerUtil.error(TechnicalAnalysisService.class, 
                 "Error fetching real OHLC data for " + cryptoId + ": " + e.getMessage(), e);
-            return generateSamplePriceHistory(currentPrice); // Fallback to sample data
+            return new ArrayList<>(); // Return empty list instead of fallback data
         }
     }
     
@@ -747,46 +747,6 @@ public class TechnicalAnalysisService {
         }
     }
 
-    /**
-     * Generate sample price history for demonstration
-     * This is now a fallback method when API calls fail
-     */
-    private static List<PricePoint> generateSamplePriceHistory(double currentPrice) {
-        List<PricePoint> history = new ArrayList<>();
-        double price = currentPrice * 0.85; // Start 15% below current
-        long timestamp = System.currentTimeMillis() - (50 * 24 * 60 * 60 * 1000L); // 50 days ago
-        
-        for (int i = 0; i < 50; i++) {
-            // Simulate price movement with some randomness
-            double change = (Math.random() - 0.5) * 0.1; // +/- 5% change
-            price *= (1 + change);
-            
-            double open = price;
-            double high = price * (1 + Math.random() * 0.05); // Up to 5% higher
-            double low = price * (1 - Math.random() * 0.05);  // Up to 5% lower
-            double close = low + (Math.random() * (high - low));
-            double volume = 1000000 + (Math.random() * 5000000); // Random volume
-            
-            history.add(new PricePoint(timestamp, open, high, low, close, volume));
-            
-            timestamp += 24 * 60 * 60 * 1000L; // Next day
-            price = close; // Next day starts at previous close
-        }
-        
-        // Ensure last price is close to current price
-        PricePoint lastPoint = history.get(history.size() - 1);
-        history.set(history.size() - 1, new PricePoint(
-            lastPoint.getTimestamp(),
-            lastPoint.getOpen(),
-            Math.max(lastPoint.getHigh(), currentPrice),
-            Math.min(lastPoint.getLow(), currentPrice),
-            currentPrice,
-            lastPoint.getVolume()
-        ));
-        
-        return history;
-    }
-    
     /**
      * Create error indicators when analysis fails
      */
