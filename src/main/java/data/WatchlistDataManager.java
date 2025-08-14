@@ -1059,6 +1059,28 @@ public class WatchlistDataManager {
             }
         }
     }
+
+    /**
+     * Cancel all ongoing analysis tasks
+     */
+    public void cancelAllAnalysis() {
+        synchronized (lock) {
+            if (isAnalyzing) {
+                LoggerUtil.info(WatchlistDataManager.class, "Cancelling ongoing technical analysis");
+                isAnalyzing = false;
+                apiCoordinator.notifyIntensiveOperationComplete("WatchlistDataManager");
+            }
+        }
+    }
+
+    /**
+     * Check if currently analyzing
+     */
+    public boolean isAnalyzing() {
+        synchronized (lock) {
+            return isAnalyzing;
+        }
+    }
     
     /**
      * Get the API coordinator instance (used by WatchlistPanel for coordination checks)

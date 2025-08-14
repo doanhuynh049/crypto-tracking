@@ -4,6 +4,7 @@ import cache.CoinGeckoApiCache;
 import data.WatchlistDataManager;
 import model.WatchlistData;
 import model.TechnicalIndicators.TrendDirection;
+import ui.CleanupablePanel;
 import ui.dialog.AddWatchlistItemDialog;
 import ui.dialog.TechnicalAnalysisDetailDialog;
 import util.LoggerUtil;
@@ -26,7 +27,7 @@ import java.util.Map;
  * Watchlist Panel for tracking cryptocurrency entry opportunities
  * Distinguished from portfolio holdings - focuses on technical analysis and entry signals
  */
-public class WatchlistPanel extends JPanel {
+public class WatchlistPanel extends JPanel implements CleanupablePanel {
     
     // UI Components
     private DefaultTableModel tableModel;
@@ -1086,6 +1087,60 @@ public class WatchlistPanel extends JPanel {
     public JLabel getCacheStatusLabel() {
         return cacheStatusLabel;
     }
+
+    // =================================================================================
+    // CleanupablePanel Interface Implementation
+    // =================================================================================
+
+    @Override
+    public void cleanup() {
+        LoggerUtil.info(WatchlistPanel.class, "🧹 Cleaning up WatchlistPanel - stopping all background operations");
+        
+        // Stop auto-refresh timer
+        stopAutoRefresh();
+        
+        // Stop any ongoing technical analysis in data manager
+        if (dataManager != null) {
+            try {
+                // Cancel any running analysis tasks
+                dataManager.cancelAllAnalysis();
+                LoggerUtil.info(WatchlistPanel.class, "Cancelled all technical analysis tasks");
+            } catch (Exception e) {
+                LoggerUtil.warning(WatchlistPanel.class, "Error cancelling analysis tasks: " + e.getMessage());
+            }
+        }
+        
+        LoggerUtil.info(WatchlistPanel.class, "✅ WatchlistPanel cleanup completed");
+    }
+
+    @Override
+    public void activate() {
+        LoggerUtil.info(WatchlistPanel.class, "🚀 Activating WatchlistPanel - starting background operations");
+        
+        // Start auto-refresh timer
+        startAutoRefresh();
+        
+        // Refresh data to ensure we have current information
+        SwingUtilities.invokeLater(() -> {
+            updateTableData();
+            updateStats();
+            updateCacheStatus();
+            statusLabel.setText("✅ Panel activated");
+            statusLabel.setForeground(SUCCESS_COLOR);
+        });
+        
+        LoggerUtil.info(WatchlistPanel.class, "✅ WatchlistPanel activation completed");
+    }
+
+    @Override
+    public boolean hasActiveOperations() {
+        boolean hasTimer = (priceRefreshTimer != null && priceRefreshTimer.isRunning());
+        boolean hasAnalysis = (dataManager != null && dataManager.isAnalyzing());
+        
+        return hasTimer || hasAnalysis;
+    }
+
+    // =================================================================================
 
     /**
      * Get fresh price from cache or API for an item

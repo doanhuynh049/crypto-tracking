@@ -3,6 +3,7 @@ package main;
 import data.PortfolioDataManager;
 import service.DailyReportScheduler;
 import service.EmailService;
+import ui.CleanupablePanel;
 import ui.panel.PortfolioContentPanel;
 import ui.panel.PortfolioOverviewPanel;
 import util.LoggerUtil;
@@ -332,6 +333,12 @@ public class CryptoMainApp extends JFrame {
         LoggerUtil.debug(CryptoMainApp.class, "Loading content for: " + item.title);
         
         try {
+            // Cleanup current panel if it implements CleanupablePanel
+            if (currentContentPanel instanceof ui.CleanupablePanel) {
+                LoggerUtil.info(CryptoMainApp.class, "Cleaning up current panel before switching");
+                ((ui.CleanupablePanel) currentContentPanel).cleanup();
+            }
+            
             // Remove current content
             if (currentContentPanel != null) {
                 rightPanel.remove(currentContentPanel);
@@ -368,6 +375,12 @@ public class CryptoMainApp extends JFrame {
             rightPanel.add(currentContentPanel, BorderLayout.CENTER);
             rightPanel.revalidate();
             rightPanel.repaint();
+            
+            // Activate new panel if it implements CleanupablePanel
+            if (currentContentPanel instanceof ui.CleanupablePanel) {
+                LoggerUtil.info(CryptoMainApp.class, "Activating new panel after switching");
+                ((ui.CleanupablePanel) currentContentPanel).activate();
+            }
             
             LoggerUtil.debug(CryptoMainApp.class, "Content loaded successfully for: " + item.title);
         } catch (Exception e) {
@@ -1084,6 +1097,12 @@ public class CryptoMainApp extends JFrame {
      */
     private void shutdownApplication() {
         LoggerUtil.info(CryptoMainApp.class, "Shutting down application");
+        
+        // Cleanup current panel if it implements CleanupablePanel
+        if (currentContentPanel instanceof CleanupablePanel) {
+            LoggerUtil.info(CryptoMainApp.class, "Cleaning up current panel during shutdown");
+            ((CleanupablePanel) currentContentPanel).cleanup();
+        }
         
         // Stop daily report scheduler
         DailyReportScheduler.stopDailyReports();

@@ -1,6 +1,7 @@
 package ui.panel;
 
 import data.PortfolioDataManager;
+import ui.CleanupablePanel;
 import util.LoggerUtil;
 
 import javax.swing.*;
@@ -12,7 +13,7 @@ import java.awt.*;
  * 
  * This class now acts as a coordinator between UI building and data management.
  */
-public class PortfolioContentPanel extends JPanel {
+public class PortfolioContentPanel extends JPanel implements CleanupablePanel {
     
     private PortfolioDataManager dataManager;
     private PortfolioUIBuilder uiBuilder;
@@ -84,5 +85,47 @@ public class PortfolioContentPanel extends JPanel {
     
     public PortfolioUIBuilder getUIBuilder() {
         return uiBuilder;
+    }
+    
+    @Override
+    public void cleanup() {
+        LoggerUtil.info(PortfolioContentPanel.class, "🛑 Cleaning up PortfolioContentPanel - stopping background operations");
+        
+        if (dataManager != null) {
+            // Stop auto-refresh timer and cancel any ongoing operations
+            dataManager.stopAutoRefresh();
+            dataManager.cancelAllOperations();
+        }
+        
+        LoggerUtil.info(PortfolioContentPanel.class, "✅ PortfolioContentPanel cleanup completed");
+    }
+
+    @Override
+    public void activate() {
+        LoggerUtil.info(PortfolioContentPanel.class, "🚀 Activating PortfolioContentPanel - starting background operations");
+        
+        if (dataManager != null) {
+            // Start auto-refresh timer
+            dataManager.startAutoRefresh();
+            
+            // Refresh data to ensure we have current information
+            SwingUtilities.invokeLater(() -> {
+                dataManager.refreshPrices();
+                if (uiBuilder != null) {
+                    uiBuilder.getStatusLabel().setText("✅ Panel activated");
+                }
+            });
+        }
+        
+        LoggerUtil.info(PortfolioContentPanel.class, "✅ PortfolioContentPanel activation completed");
+    }
+
+    @Override
+    public boolean hasActiveOperations() {
+        if (dataManager == null) {
+            return false;
+        }
+        
+        return dataManager.hasActiveOperations();
     }
 }

@@ -873,6 +873,35 @@ public class PortfolioDataManager {
     }
     
     /**
+     * Stop auto-refresh timer (useful for cleanup)
+     */
+    public void stopAutoRefresh() {
+        if (refreshTimer != null) {
+            refreshTimer.stop();
+            LoggerUtil.info(PortfolioDataManager.class, "Stopped portfolio auto-refresh timer");
+        }
+    }
+    
+    /**
+     * Cancel all ongoing operations (timers, background tasks, etc.)
+     */
+    public void cancelAllOperations() {
+        stopAutoRefresh();
+        
+        // Notify API coordinator that we're stopping intensive operations
+        apiCoordinator.notifyIntensiveOperationComplete("PortfolioDataManager");
+        
+        LoggerUtil.info(PortfolioDataManager.class, "Cancelled all portfolio operations");
+    }
+    
+    /**
+     * Check if there are active operations running
+     */
+    public boolean hasActiveOperations() {
+        return (refreshTimer != null && refreshTimer.isRunning());
+    }
+    
+    /**
      * Check if table is currently being updated to prevent infinite recursion
      */
     public boolean isUpdatingTable() {
