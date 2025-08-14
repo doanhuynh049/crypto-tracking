@@ -41,6 +41,9 @@ public class WatchlistPanel extends JPanel {
     // Reference to data manager
     private WatchlistDataManager dataManager;
     
+    // Auto-refresh timer for price updates
+    private Timer priceRefreshTimer;
+    
     // Modern color scheme matching the main app
     private static final Color PRIMARY_COLOR = new Color(25, 118, 210);
     private static final Color SUCCESS_COLOR = new Color(76, 175, 80);
@@ -95,6 +98,9 @@ public class WatchlistPanel extends JPanel {
             
             // Load initial data
             refreshWatchlistData();
+            
+            // Start auto-refresh for price updates
+            startAutoRefresh();
             
             LoggerUtil.info(WatchlistPanel.class, "=== Watchlist Panel initialized successfully ===");
         } catch (Exception e) {
@@ -949,5 +955,75 @@ public class WatchlistPanel extends JPanel {
             default:
                 return "-";
         }
+    }
+    
+    /**
+     * Start auto-refresh timer for price updates (every 15 seconds)
+     * This updates only prices, not technical analysis, for better performance
+     */
+    public void startAutoRefresh() {
+        LoggerUtil.info(WatchlistPanel.class, "Starting watchlist auto-refresh timer (15s interval)");
+        
+        // Auto-refresh every 15 seconds to match Portfolio panel and work well with API coordination
+        priceRefreshTimer = new Timer(15000, e -> {
+            // Only refresh prices if not in the middle of technical analysis
+            if (dataManager.getApiCoordinator().canMakeApiCall("WatchlistPanel", "auto-refresh")) {
+                refreshPricesOnly();
+            } else {
+                LoggerUtil.debug(WatchlistPanel.class, 
+                    "Skipping auto price refresh - technical analysis in progress");
+            }
+        });
+        priceRefreshTimer.start();
+    }
+    
+    /**
+     * Stop auto-refresh timer (useful for cleanup)
+     */
+    public void stopAutoRefresh() {
+        if (priceRefreshTimer != null) {
+            priceRefreshTimer.stop();
+            LoggerUtil.info(WatchlistPanel.class, "Stopped watchlist auto-refresh timer");
+        }
+    }
+    
+    /**
+     * Refresh only prices for all watchlist items (faster than full refresh)
+     * This method is called by the auto-refresh timer
+     */
+    public void refreshPricesOnly() {
+        LoggerUtil.debug(WatchlistPanel.class, "Auto-refreshing prices only");
+        
+        // Run price refresh in background thread
+        new Thread(() -> {
+            try {
+                dataManager.refreshPricesOnly();
+                
+                // Update UI on EDT
+                SwingUtilities.invokeLater(() -> {
+                    updateTableData();
+                    updateStats();
+                    
+                    // Update status briefly to show price refresh
+                    statusLabel.setText("🔄 Prices updated");
+                    statusLabel.setForeground(SUCCESS_COLOR);
+                    
+                    // Reset status after 2 seconds
+                    Timer resetTimer = new Timer(2000, e -> {
+                        statusLabel.setText("✅ Ready");
+                        statusLabel.setForeground(SUCCESS_COLOR);
+                    });
+                    resetTimer.setRepeats(false);
+                    resetTimer.start();
+                });
+                
+            } catch (Exception e) {
+                LoggerUtil.error(WatchlistPanel.class, "Failed to auto-refresh prices", e);
+                SwingUtilities.invokeLater(() -> {
+                    statusLabel.setText("❌ Price refresh error");
+                    statusLabel.setForeground(DANGER_COLOR);
+                });
+            }
+        }).start();
     }
 }

@@ -3,6 +3,7 @@ package data;
 import model.CryptoData;
 import model.WatchlistData;
 import model.EntryStatus;
+import service.ApiCoordinationService;
 import service.TechnicalAnalysisService;
 import util.LoggerUtil;
 
@@ -10,6 +11,7 @@ import java.io.*;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
+import javax.swing.Timer;
 
 /**
  * Data Manager for Cryptocurrency Watchlist
@@ -19,9 +21,17 @@ public class WatchlistDataManager {
     
     private static final String WATCHLIST_FILE = "data/watchlist.dat";
     private static final String BACKUP_FILE = "data/watchlist_backup.dat";
-    
+    private String TAG = "WatchlistDataManager";
     private List<WatchlistData> watchlist;
     private final Object lock = new Object();
+    
+    // Analysis state management
+    private volatile boolean isAnalyzing = false;
+    private volatile long lastAnalysisTime = 0;
+    private static final long MIN_ANALYSIS_INTERVAL = 15000; // Reduced to 15 seconds
+    
+    // API coordination
+    private final ApiCoordinationService apiCoordinator = ApiCoordinationService.getInstance();
     
     // Callback interface for UI updates
     public interface TechnicalAnalysisCallback {
@@ -232,19 +242,54 @@ public class WatchlistDataManager {
     }
     
     /**
-     * Analyze all watchlist items
+     * Analyze all watchlist items sequentially to avoid rate limiting
      */
     public CompletableFuture<Void> analyzeAllWatchlistItems() {
-        List<CompletableFuture<Void>> analysisResults = new ArrayList<>();
-        
         synchronized (lock) {
-            for (WatchlistData item : watchlist) {
-                analysisResults.add(analyzeWatchlistItem(item));
+            long currentTime = System.currentTimeMillis();
+            
+            // Prevent duplicate analysis calls within minimum interval
+            if (isAnalyzing) {
+                LoggerUtil.info(WatchlistDataManager.class, 
+                    "Analysis already in progress, skipping duplicate request");
+                return CompletableFuture.completedFuture(null);
             }
+            
+            if (currentTime - lastAnalysisTime < MIN_ANALYSIS_INTERVAL) {
+                LoggerUtil.info(WatchlistDataManager.class, 
+                    "Analysis requested too soon, waiting for cooldown period");
+                return CompletableFuture.completedFuture(null);
+            }
+            
+            isAnalyzing = true;
+            lastAnalysisTime = currentTime;
         }
         
-        return CompletableFuture.allOf(analysisResults.toArray(new CompletableFuture[0]))
-            .thenRun(() -> {
+        // Notify API coordinator about intensive operations
+        apiCoordinator.notifyIntensiveOperationStart("WatchlistDataManager");
+        
+        return CompletableFuture.runAsync(() -> {
+            try {
+                analyzeWatchlistItemsSequentially(0);
+                // Note: completion notification is now handled in analyzeWatchlistItemsSequentially
+                // when all items are actually processed, not just when this method returns
+            } catch (Exception e) {
+                LoggerUtil.error(WatchlistDataManager.class, "Error in sequential analysis", e);
+                synchronized (lock) {
+                    isAnalyzing = false;
+                }
+                apiCoordinator.notifyIntensiveOperationComplete("WatchlistDataManager");
+            }
+        });
+    }
+    
+    /**
+     * Analyze watchlist items one by one with delays to prevent rate limiting
+     */
+    private void analyzeWatchlistItemsSequentially(int index) {
+        synchronized (lock) {
+            if (index >= watchlist.size()) {
+                // All items processed - NOW we can mark completion
                 saveWatchlist();
                 LoggerUtil.info(WatchlistDataManager.class, 
                     "Completed analysis for all " + watchlist.size() + " watchlist items");
@@ -253,7 +298,39 @@ public class WatchlistDataManager {
                 if (uiCallback != null) {
                     uiCallback.onAllAnalysisComplete();
                 }
-            });
+                
+                // Mark analysis as complete and notify API coordinator
+                isAnalyzing = false;
+                apiCoordinator.notifyIntensiveOperationComplete("WatchlistDataManager");
+                return;
+            }
+            
+            WatchlistData item = watchlist.get(index);
+            LoggerUtil.info(WatchlistDataManager.class, 
+                "Analyzing watchlist item " + item.getSymbol() + " (" + (index + 1) + "/" + watchlist.size() + ")");
+            
+            // Analyze current item
+            analyzeWatchlistItem(item)
+                .thenRun(() -> {
+                    // Add delay before next item to prevent rate limiting
+                    Timer delayTimer = new Timer(12000, e -> { // Increased to 12 seconds
+                        analyzeWatchlistItemsSequentially(index + 1);
+                    });
+                    delayTimer.setRepeats(false);
+                    delayTimer.start();
+                })
+                .exceptionally(ex -> {
+                    LoggerUtil.error(WatchlistDataManager.class, 
+                        "Error analyzing " + item.getSymbol() + ": " + ex.getMessage(), ex);
+                    // Continue with next item even if current one fails
+                    Timer delayTimer = new Timer(12000, e -> {
+                        analyzeWatchlistItemsSequentially(index + 1);
+                    });
+                    delayTimer.setRepeats(false);
+                    delayTimer.start();
+                    return null;
+                });
+        }
     }
     
     /**
@@ -406,7 +483,7 @@ public class WatchlistDataManager {
      * Load watchlist from file
      */
     private void loadWatchlist() {
-        LoggerUtil.debug(WatchlistDataManager.class, ">>> loadWatchlist() called");
+        LoggerUtil.info(WatchlistDataManager.class, TAG + " loadWatchlist() called");
         try {
             File dataFile = new File(WATCHLIST_FILE);
             LoggerUtil.debug(WatchlistDataManager.class, ">>> Checking for watchlist file: " + WATCHLIST_FILE);
@@ -508,38 +585,28 @@ public class WatchlistDataManager {
     }
     
     /**
-     * Refresh prices and analysis for all items
+     * Refresh prices and analysis for all items sequentially with duplicate prevention
      */
     public void refreshPricesAndAnalysis() {
         LoggerUtil.debug(WatchlistDataManager.class, ">>> refreshPricesAndAnalysis() called");
         
-        List<CompletableFuture<Void>> analysisResults = new ArrayList<>();
-        
         synchronized (lock) {
-            for (WatchlistData item : watchlist) {
-                // Update entry opportunity based on current data
-                item.updateEntryOpportunity();
-                
-                // Refresh technical analysis and collect futures
-                analysisResults.add(analyzeWatchlistItem(item));
+            // Check if already analyzing
+            if (isAnalyzing) {
+                LoggerUtil.info(WatchlistDataManager.class, 
+                    "Technical analysis already in progress, skipping refresh request");
+                return;
             }
         }
         
-        // Wait for all analysis to complete, then save
-        CompletableFuture.allOf(analysisResults.toArray(new CompletableFuture[0]))
+        // Use the sequential analysis method with duplicate prevention
+        analyzeAllWatchlistItems()
             .thenRun(() -> {
-                saveWatchlistData();
                 LoggerUtil.info(WatchlistDataManager.class, 
-                    "Completed refresh for all " + watchlist.size() + " items");
-                
-                // Notify UI that all refresh is complete
-                if (uiCallback != null) {
-                    uiCallback.onAllAnalysisComplete();
-                }
+                    "Refresh completed for all " + watchlist.size() + " items");
             })
             .exceptionally(ex -> {
                 LoggerUtil.error(WatchlistDataManager.class, "Error during refresh", ex);
-                saveWatchlistData(); // Save anyway
                 return null;
             });
     }
@@ -857,5 +924,108 @@ public class WatchlistDataManager {
             
             return false;
         }
+    }
+
+    /**
+     * Refresh only prices for all watchlist items without technical analysis
+     * This is much faster than refreshPricesAndAnalysis() and suitable for frequent updates
+     */
+    public void refreshPricesOnly() {
+        LoggerUtil.debug(WatchlistDataManager.class, "Starting price-only refresh for watchlist");
+        
+        // Check with API coordinator before making bulk price request
+        if (!apiCoordinator.requestApiCall("WatchlistDataManager", "price-only update")) {
+            LoggerUtil.info(WatchlistDataManager.class, 
+                "API coordination denied price-only fetch - technical analysis in progress");
+            return;
+        }
+        
+        synchronized (lock) {
+            if (watchlist.isEmpty()) {
+                LoggerUtil.debug(WatchlistDataManager.class, "No watchlist items to update");
+                return;
+            }
+            
+            try {
+                // Build API URL for all watchlist items
+                StringBuilder cryptoIds = new StringBuilder();
+                for (int i = 0; i < watchlist.size(); i++) {
+                    if (i > 0) cryptoIds.append(",");
+                    cryptoIds.append(watchlist.get(i).id);
+                }
+                
+                String apiUrl = "https://api.coingecko.com/api/v3/simple/price?ids=" + 
+                               cryptoIds.toString() + "&vs_currencies=usd";
+                
+                LoggerUtil.debug(WatchlistDataManager.class, "Price API Request URL: " + apiUrl);
+                
+                java.net.URL url = new java.net.URL(apiUrl);
+                java.net.HttpURLConnection connection = (java.net.HttpURLConnection) url.openConnection();
+                connection.setRequestMethod("GET");
+                connection.setConnectTimeout(10000);
+                connection.setReadTimeout(10000);
+                
+                int responseCode = connection.getResponseCode();
+                if (responseCode == 429) {
+                    LoggerUtil.warning(WatchlistDataManager.class, 
+                        "Rate limited during price fetch - will retry later");
+                    return;
+                }
+                
+                if (responseCode != 200) {
+                    LoggerUtil.warning(WatchlistDataManager.class, 
+                        "Price API returned response code: " + responseCode);
+                    return;
+                }
+                
+                java.io.BufferedReader reader = new java.io.BufferedReader(
+                    new java.io.InputStreamReader(connection.getInputStream()));
+                StringBuilder response = new StringBuilder();
+                String line;
+                
+                while ((line = reader.readLine()) != null) {
+                    response.append(line);
+                }
+                reader.close();
+                
+                org.json.JSONObject jsonResponse = new org.json.JSONObject(response.toString());
+                int updatedPrices = 0;
+                
+                for (WatchlistData item : watchlist) {
+                    if (jsonResponse.has(item.id)) {
+                        org.json.JSONObject cryptoData = jsonResponse.getJSONObject(item.id);
+                        if (cryptoData.has("usd")) {
+                            double oldPrice = item.getCurrentPrice();
+                            double newPrice = cryptoData.getDouble("usd");
+                            item.updatePrice(newPrice);
+                            
+                            if (Math.abs(oldPrice - newPrice) > 0.01) { // Only log significant changes
+                                updatedPrices++;
+                                LoggerUtil.debug(WatchlistDataManager.class, 
+                                    String.format("Price updated for %s: $%.4f -> $%.4f", 
+                                        item.getSymbol(), oldPrice, newPrice));
+                            }
+                        }
+                    }
+                }
+                
+                LoggerUtil.info(WatchlistDataManager.class, 
+                    String.format("Price-only refresh completed: %d price updates", updatedPrices));
+                
+                if (updatedPrices > 0) {
+                    saveWatchlist(); // Save updated prices
+                }
+                
+            } catch (Exception e) {
+                LoggerUtil.error(WatchlistDataManager.class, "Failed to refresh watchlist prices", e);
+            }
+        }
+    }
+    
+    /**
+     * Get the API coordinator instance (used by WatchlistPanel for coordination checks)
+     */
+    public ApiCoordinationService getApiCoordinator() {
+        return apiCoordinator;
     }
 }

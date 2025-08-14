@@ -3,6 +3,7 @@ package data;
 import cache.AiResponseCache;
 import model.CryptoData;
 import service.AiAdviceService;
+import service.ApiCoordinationService;
 import service.TechnicalAnalysisService;
 import ui.panel.PortfolioUIBuilder;
 import util.LoggerUtil;
@@ -36,6 +37,9 @@ public class PortfolioDataManager {
     // Reference to UI builder for updates
     private PortfolioUIBuilder uiBuilder;
     private Timer refreshTimer;
+    
+    // API coordination
+    private final ApiCoordinationService apiCoordinator = ApiCoordinationService.getInstance();
     
     public PortfolioDataManager() {
         LoggerUtil.info(PortfolioDataManager.class, "Initializing Portfolio Data Manager");
@@ -277,10 +281,17 @@ public class PortfolioDataManager {
     }
     
     /**
-     * Fetch cryptocurrency prices from API
+     * Fetch cryptocurrency prices from API with coordinated rate limiting
      */
     private void fetchCryptoPrices() {
         LoggerUtil.debug(PortfolioDataManager.class, "Fetching cryptocurrency prices from API");
+        
+        // Check with API coordinator before making bulk price request
+        if (!apiCoordinator.requestApiCall("PortfolioDataManager", "bulk price update")) {
+            LoggerUtil.info(PortfolioDataManager.class, 
+                "API coordination denied price fetch - technical analysis in progress");
+            return;
+        }
         
         try {
             StringBuilder cryptoIds = new StringBuilder();
@@ -297,8 +308,21 @@ public class PortfolioDataManager {
             URL url = new URL(apiUrl);
             HttpURLConnection connection = (HttpURLConnection) url.openConnection();
             connection.setRequestMethod("GET");
-            connection.setConnectTimeout(5000);
-            connection.setReadTimeout(5000);
+            connection.setConnectTimeout(10000); // Increased timeout
+            connection.setReadTimeout(10000);
+            
+            int responseCode = connection.getResponseCode();
+            if (responseCode == 429) {
+                LoggerUtil.warning(PortfolioDataManager.class, 
+                    "Rate limited during price fetch - will retry later");
+                return;
+            }
+            
+            if (responseCode != 200) {
+                LoggerUtil.warning(PortfolioDataManager.class, 
+                    "Price API returned response code: " + responseCode);
+                return;
+            }
             
             BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
             StringBuilder response = new StringBuilder();
@@ -343,10 +367,13 @@ public class PortfolioDataManager {
     }
 
     /**
-     * Refresh technical analysis for all cryptocurrencies
+     * Refresh technical analysis for all cryptocurrencies with coordination
      */
     public void refreshTechnicalAnalysis() {
         LoggerUtil.info(PortfolioDataManager.class, "Starting technical analysis refresh");
+        
+        // Notify other systems about intensive operations
+        apiCoordinator.notifyIntensiveOperationStart("PortfolioDataManager");
         
         if (uiBuilder != null) {
             uiBuilder.getStatusLabel().setText("📊 Portfolio Status: Analyzing technical indicators...");
@@ -366,6 +393,9 @@ public class PortfolioDataManager {
             
             @Override
             protected void done() {
+                // Notify completion of intensive operations
+                apiCoordinator.notifyIntensiveOperationComplete("PortfolioDataManager");
+                
                 if (uiBuilder != null) {
                     uiBuilder.getStatusLabel().setText("📊 Portfolio Status: Technical analysis completed");
                 }
@@ -766,8 +796,17 @@ public class PortfolioDataManager {
      * Start auto-refresh timer
      */
     public void startAutoRefresh() {
-        // Auto-refresh every 10 seconds
-        refreshTimer = new Timer(10000, e -> refreshPrices());
+        // Auto-refresh every 15 seconds to work well with 8s API coordination delays
+        // This allows time for any ongoing technical analysis to complete
+        refreshTimer = new Timer(15000, e -> {
+            // Only refresh if not in the middle of intensive operations
+            if (apiCoordinator.canMakeApiCall("PortfolioDataManager", "auto-refresh")) {
+                refreshPrices();
+            } else {
+                LoggerUtil.debug(PortfolioDataManager.class, 
+                    "Skipping auto-refresh - technical analysis in progress");
+            }
+        });
         refreshTimer.start();
     }
     
