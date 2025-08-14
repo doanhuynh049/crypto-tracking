@@ -1,6 +1,7 @@
 package data;
 
 import cache.AiResponseCache;
+import cache.CoinGeckoApiCache;
 import model.CryptoData;
 import service.AiAdviceService;
 import service.ApiCoordinationService;
@@ -74,6 +75,13 @@ public class PortfolioDataManager {
         LoggerUtil.debug(PortfolioDataManager.class, "Validating cryptocurrency ID: " + cryptoId);
         
         return CompletableFuture.supplyAsync(() -> {
+            // Check cache first for validation
+            Double cachedPrice = CoinGeckoApiCache.getCachedPrice(cryptoId);
+            if (cachedPrice != null) {
+                LoggerUtil.debug(PortfolioDataManager.class, "Using cached price for validation of: " + cryptoId);
+                return new ValidationResult(true, "Valid cryptocurrency ID (cached)", cachedPrice, cryptoId);
+            }
+            
             try {
                 // Test API call to check if cryptocurrency exists
                 String apiUrl = "https://api.coingecko.com/api/v3/simple/price?ids=" + 
@@ -105,6 +113,10 @@ public class PortfolioDataManager {
                         JSONObject cryptoData = jsonResponse.getJSONObject(cryptoId);
                         if (cryptoData.has("usd")) {
                             double currentPrice = cryptoData.getDouble("usd");
+                            
+                            // Cache the validated price
+                            CoinGeckoApiCache.cachePrice(cryptoId, currentPrice);
+                            
                             return new ValidationResult(true, "Valid cryptocurrency ID", currentPrice, cryptoId);
                         }
                     }
@@ -286,7 +298,38 @@ public class PortfolioDataManager {
     private void fetchCryptoPrices() {
         LoggerUtil.debug(PortfolioDataManager.class, "Fetching cryptocurrency prices from API");
         
-        // Check with API coordinator before making bulk price request
+        // Check cache for all cryptocurrencies first
+        List<CryptoData> cryptosNeedingUpdate = new ArrayList<>();
+        int cachedPrices = 0;
+        
+        for (CryptoData crypto : cryptoList) {
+            Double cachedPrice = CoinGeckoApiCache.getCachedPrice(crypto.id);
+            if (cachedPrice != null) {
+                double oldPrice = crypto.currentPrice;
+                crypto.currentPrice = cachedPrice;
+                if (oldPrice != crypto.currentPrice) {
+                    cachedPrices++;
+                    LoggerUtil.debug(PortfolioDataManager.class, 
+                        String.format("Using cached price for %s: $%.4f", crypto.symbol, cachedPrice));
+                }
+            } else {
+                cryptosNeedingUpdate.add(crypto);
+            }
+        }
+        
+        if (cachedPrices > 0) {
+            LoggerUtil.info(PortfolioDataManager.class, 
+                String.format("Used cached prices for %d cryptocurrencies", cachedPrices));
+        }
+        
+        // If all prices are cached, we're done
+        if (cryptosNeedingUpdate.isEmpty()) {
+            LoggerUtil.info(PortfolioDataManager.class, "All prices served from cache");
+            SwingUtilities.invokeLater(() -> updateTableData());
+            return;
+        }
+        
+        // Check with API coordinator before making bulk price request for remaining cryptos
         if (!apiCoordinator.requestApiCall("PortfolioDataManager", "bulk price update")) {
             LoggerUtil.info(PortfolioDataManager.class, 
                 "API coordination denied price fetch - technical analysis in progress");
@@ -295,9 +338,9 @@ public class PortfolioDataManager {
         
         try {
             StringBuilder cryptoIds = new StringBuilder();
-            for (int i = 0; i < cryptoList.size(); i++) {
+            for (int i = 0; i < cryptosNeedingUpdate.size(); i++) {
                 if (i > 0) cryptoIds.append(",");
-                cryptoIds.append(cryptoList.get(i).id);
+                cryptoIds.append(cryptosNeedingUpdate.get(i).id);
             }
             
             String apiUrl = "https://api.coingecko.com/api/v3/simple/price?ids=" + 
@@ -336,12 +379,16 @@ public class PortfolioDataManager {
             JSONObject jsonResponse = new JSONObject(response.toString());
             int updatedPrices = 0;
             
-            for (CryptoData crypto : cryptoList) {
+            for (CryptoData crypto : cryptosNeedingUpdate) {
                 if (jsonResponse.has(crypto.id)) {
                     JSONObject cryptoData = jsonResponse.getJSONObject(crypto.id);
                     if (cryptoData.has("usd")) {
                         double oldPrice = crypto.currentPrice;
-                        crypto.currentPrice = cryptoData.getDouble("usd");
+                        double newPrice = cryptoData.getDouble("usd");
+                        crypto.currentPrice = newPrice;
+                        
+                        // Cache the new price
+                        CoinGeckoApiCache.cachePrice(crypto.id, newPrice);
                         
                         if (oldPrice != crypto.currentPrice) {
                             updatedPrices++;
@@ -356,6 +403,13 @@ public class PortfolioDataManager {
             LoggerUtil.info(PortfolioDataManager.class, 
                 String.format("Successfully updated prices for %d cryptocurrencies", updatedPrices));
             
+            // Update cache status display
+            SwingUtilities.invokeLater(() -> {
+                if (uiBuilder != null) {
+                    uiBuilder.updateCacheStatus();
+                }
+            });
+            
         } catch (Exception e) {
             LoggerUtil.error(PortfolioDataManager.class, "Failed to fetch cryptocurrency prices", e);
             SwingUtilities.invokeLater(() -> {
@@ -364,6 +418,14 @@ public class PortfolioDataManager {
                 }
             });
         }
+        
+        // Final UI update
+        SwingUtilities.invokeLater(() -> {
+            updateTableData();
+            if (uiBuilder != null) {
+                uiBuilder.updateCacheStatus();
+            }
+        });
     }
 
     /**

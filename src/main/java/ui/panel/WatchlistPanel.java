@@ -1,5 +1,6 @@
 package ui.panel;
 
+import cache.CoinGeckoApiCache;
 import data.WatchlistDataManager;
 import model.WatchlistData;
 import model.TechnicalIndicators.TrendDirection;
@@ -35,6 +36,7 @@ public class WatchlistPanel extends JPanel {
     private JButton removeItemButton;
     private JLabel statusLabel;
     private JLabel watchlistStatsLabel;
+    private JLabel cacheStatusLabel;
     private DecimalFormat priceFormat = new DecimalFormat("$#,##0.00");
     private DecimalFormat percentFormat = new DecimalFormat("+#0.00%;-#0.00%");
     
@@ -159,8 +161,14 @@ public class WatchlistPanel extends JPanel {
         statusLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
         statusLabel.setForeground(SUCCESS_COLOR);
         
+        // Cache Status label
+        cacheStatusLabel = new JLabel("⚡ Cache: Initializing...");
+        cacheStatusLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        cacheStatusLabel.setForeground(new Color(76, 175, 80));
+        
         statsPanel.add(watchlistStatsLabel);
         statsPanel.add(statusLabel);
+        statsPanel.add(cacheStatusLabel);
         
         // Layout
         JPanel leftSection = new JPanel();
@@ -461,7 +469,10 @@ public class WatchlistPanel extends JPanel {
                         
                     case 7: // Support/Resistance - Market Structure
                         if (item.hasTechnicalAnalysis()) {
-                            double currentPrice = item.getCurrentPrice();
+                            // Get fresh price from cache (non-blocking)
+                            Double cachedPrice = cache.CoinGeckoApiCache.getCachedPrice(item.id);
+                            double currentPrice = cachedPrice != null ? cachedPrice : item.getCurrentPrice();
+                            
                             double support = item.technicalIndicators.getSupportLevel();
                             double resistance = item.technicalIndicators.getResistanceLevel();
                             double supportDistance = Math.abs(currentPrice - support) / support;
@@ -591,6 +602,7 @@ public class WatchlistPanel extends JPanel {
                 SwingUtilities.invokeLater(() -> {
                     updateTableData();
                     updateStats();
+                    updateCacheStatus();
                     statusLabel.setText("✅ Updated");
                     statusLabel.setForeground(SUCCESS_COLOR);
                 });
@@ -621,6 +633,7 @@ public class WatchlistPanel extends JPanel {
                 SwingUtilities.invokeLater(() -> {
                     updateTableData();
                     updateStats();
+                    updateCacheStatus();
                     statusLabel.setText("✅ Technical Analysis Updated");
                     statusLabel.setForeground(SUCCESS_COLOR);
                 });
@@ -706,14 +719,17 @@ public class WatchlistPanel extends JPanel {
         LoggerUtil.debug(WatchlistPanel.class, ">>> Retrieved " + items.size() + " watchlist items from dataManager");
         
         for (WatchlistData item : items) {
-            LoggerUtil.debug(WatchlistPanel.class, ">>> Processing item: " + item.symbol + 
-                " | Price: " + item.currentPrice + 
+            // Get fresh price from cache or API instead of using item.currentPrice
+            double currentPrice = getFreshPrice(item);
+            
+            LoggerUtil.info(WatchlistPanel.class, ">>> Processing item: " + item.symbol + 
+                " | Fresh Price: " + currentPrice + " | Stored Price: " + item.currentPrice +
                 " | Has Technical Analysis: " + item.hasTechnicalAnalysis());
             
             Object[] rowData = {
                 item.symbol,
                 item.name,
-                priceFormat.format(item.currentPrice),
+                priceFormat.format(currentPrice),
                 // Momentum Indicators
                 getTechnicalValue(item, "RSI"),
                 getTechnicalValue(item, "MACD"),
@@ -909,7 +925,10 @@ public class WatchlistPanel extends JPanel {
                 return String.format("%.1fx%s", volumeRatio, volumeIcon);
                 
             case "SUPPORT_RESISTANCE":
-                double currentPrice = item.getCurrentPrice();
+                // Get fresh price from cache (non-blocking) or fallback to stored price
+                Double cachedPrice = cache.CoinGeckoApiCache.getCachedPrice(item.id);
+                double currentPrice = cachedPrice != null ? cachedPrice : item.getCurrentPrice();
+                
                 double support = item.technicalIndicators.getSupportLevel();
                 double resistance = item.technicalIndicators.getResistanceLevel();
                 double supportDistance = Math.abs(currentPrice - support) / support * 100;
@@ -1003,6 +1022,7 @@ public class WatchlistPanel extends JPanel {
                 SwingUtilities.invokeLater(() -> {
                     updateTableData();
                     updateStats();
+                    updateCacheStatus();
                     
                     // Update status briefly to show price refresh
                     statusLabel.setText("🔄 Prices updated");
@@ -1025,5 +1045,129 @@ public class WatchlistPanel extends JPanel {
                 });
             }
         }).start();
+    }
+    
+    /**
+     * Update cache status display
+     */
+    public void updateCacheStatus() {
+        try {
+            cache.CoinGeckoApiCache cacheInstance = cache.CoinGeckoApiCache.getInstance();
+            double efficiency = cacheInstance.getCacheEfficiency();
+            
+            String status;
+            Color color;
+            
+            if (efficiency >= 0.8) {
+                status = "⚡ Cache: Excellent (" + String.format("%.0f%%", efficiency * 100) + ")";
+                color = new Color(76, 175, 80); // Green
+            } else if (efficiency >= 0.6) {
+                status = "🟡 Cache: Good (" + String.format("%.0f%%", efficiency * 100) + ")";
+                color = new Color(255, 193, 7); // Orange
+            } else if (efficiency >= 0.3) {
+                status = "🟠 Cache: Fair (" + String.format("%.0f%%", efficiency * 100) + ")";
+                color = new Color(255, 152, 0); // Dark orange
+            } else {
+                status = "🔴 Cache: Poor (" + String.format("%.0f%%", efficiency * 100) + ")";
+                color = new Color(244, 67, 54); // Red
+            }
+            
+            cacheStatusLabel.setText(status);
+            cacheStatusLabel.setForeground(color);
+        } catch (Exception e) {
+            cacheStatusLabel.setText("❌ Cache: Error");
+            cacheStatusLabel.setForeground(new Color(244, 67, 54));
+        }
+    }
+    
+    /**
+     * Get cache status label for external access
+     */
+    public JLabel getCacheStatusLabel() {
+        return cacheStatusLabel;
+    }
+
+    /**
+     * Get fresh price from cache or API for an item
+     * This ensures we always display the most current price available
+     */
+    private double getFreshPrice(WatchlistData item) {
+        try {
+            // First try to get from cache
+            Double cachedPrice = cache.CoinGeckoApiCache.getCachedPrice(item.id);
+            if (cachedPrice != null) {
+                LoggerUtil.debug(WatchlistPanel.class, 
+                    String.format("Using cached price for %s: $%.4f", item.symbol, cachedPrice));
+                return cachedPrice;
+            }
+            
+            // If not in cache, try to fetch from API (if coordination allows)
+            if (dataManager.getApiCoordinator().canMakeApiCall("WatchlistPanel", "fresh-price-check")) {
+                Double apiPrice = fetchPriceFromApi(item.id);
+                if (apiPrice != null) {
+                    // Cache the fresh price
+                    cache.CoinGeckoApiCache.cachePrice(item.id, apiPrice);
+                    LoggerUtil.debug(WatchlistPanel.class, 
+                        String.format("Fetched fresh price for %s from API: $%.4f", item.symbol, apiPrice));
+                    return apiPrice;
+                }
+            }
+            
+            // Fallback to stored price if cache miss and API unavailable
+            LoggerUtil.debug(WatchlistPanel.class, 
+                String.format("Using fallback stored price for %s: $%.4f", item.symbol, item.currentPrice));
+            return item.currentPrice;
+            
+        } catch (Exception e) {
+            LoggerUtil.warning(WatchlistPanel.class, 
+                "Error getting fresh price for " + item.symbol + ", using stored price: " + e.getMessage());
+            return item.currentPrice;
+        }
+    }
+    
+    /**
+     * Fetch single price from CoinGecko API
+     */
+    private Double fetchPriceFromApi(String cryptoId) {
+        try {
+            String apiUrl = "https://api.coingecko.com/api/v3/simple/price?ids=" + cryptoId + "&vs_currencies=usd";
+            
+            java.net.URL url = new java.net.URL(apiUrl);
+            java.net.HttpURLConnection connection = (java.net.HttpURLConnection) url.openConnection();
+            connection.setRequestMethod("GET");
+            connection.setConnectTimeout(5000); // Short timeout for UI responsiveness
+            connection.setReadTimeout(5000);
+            
+            int responseCode = connection.getResponseCode();
+            if (responseCode != 200) {
+                LoggerUtil.warning(WatchlistPanel.class, 
+                    "API returned response code: " + responseCode + " for " + cryptoId);
+                return null;
+            }
+            
+            java.io.BufferedReader reader = new java.io.BufferedReader(
+                new java.io.InputStreamReader(connection.getInputStream()));
+            StringBuilder response = new StringBuilder();
+            String line;
+            
+            while ((line = reader.readLine()) != null) {
+                response.append(line);
+            }
+            reader.close();
+            
+            org.json.JSONObject jsonResponse = new org.json.JSONObject(response.toString());
+            if (jsonResponse.has(cryptoId)) {
+                org.json.JSONObject cryptoData = jsonResponse.getJSONObject(cryptoId);
+                if (cryptoData.has("usd")) {
+                    return cryptoData.getDouble("usd");
+                }
+            }
+            
+            return null;
+            
+        } catch (Exception e) {
+            LoggerUtil.warning(WatchlistPanel.class, "Failed to fetch price from API for " + cryptoId + ": " + e.getMessage());
+            return null;
+        }
     }
 }

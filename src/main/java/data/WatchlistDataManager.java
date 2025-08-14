@@ -1,5 +1,6 @@
 package data;
 
+import cache.CoinGeckoApiCache;
 import model.CryptoData;
 import model.WatchlistData;
 import model.EntryStatus;
@@ -933,25 +934,58 @@ public class WatchlistDataManager {
     public void refreshPricesOnly() {
         LoggerUtil.debug(WatchlistDataManager.class, "Starting price-only refresh for watchlist");
         
-        // Check with API coordinator before making bulk price request
-        if (!apiCoordinator.requestApiCall("WatchlistDataManager", "price-only update")) {
-            LoggerUtil.info(WatchlistDataManager.class, 
-                "API coordination denied price-only fetch - technical analysis in progress");
-            return;
-        }
-        
         synchronized (lock) {
             if (watchlist.isEmpty()) {
                 LoggerUtil.debug(WatchlistDataManager.class, "No watchlist items to update");
                 return;
             }
             
+            // Check cache for all watchlist items first
+            List<WatchlistData> itemsNeedingUpdate = new ArrayList<>();
+            int cachedPrices = 0;
+            
+            for (WatchlistData item : watchlist) {
+                Double cachedPrice = CoinGeckoApiCache.getCachedPrice(item.id);
+                if (cachedPrice != null) {
+                    double oldPrice = item.getCurrentPrice();
+                    item.updatePrice(cachedPrice);
+                    if (Math.abs(oldPrice - cachedPrice) > 0.01) {
+                        cachedPrices++;
+                        LoggerUtil.debug(WatchlistDataManager.class, 
+                            String.format("Using cached price for %s: $%.4f", item.getSymbol(), cachedPrice));
+                    }
+                } else {
+                    itemsNeedingUpdate.add(item);
+                }
+            }
+            
+            if (cachedPrices > 0) {
+                LoggerUtil.info(WatchlistDataManager.class, 
+                    String.format("Used cached prices for %d watchlist items", cachedPrices));
+            }
+            
+            // If all prices are cached, we're done
+            if (itemsNeedingUpdate.isEmpty()) {
+                LoggerUtil.info(WatchlistDataManager.class, "All watchlist prices served from cache");
+                if (cachedPrices > 0) {
+                    saveWatchlist(); // Save updated prices
+                }
+                return;
+            }
+            
+            // Check with API coordinator before making bulk price request for remaining items
+            if (!apiCoordinator.requestApiCall("WatchlistDataManager", "price-only update")) {
+                LoggerUtil.info(WatchlistDataManager.class, 
+                    "API coordination denied price-only fetch - technical analysis in progress");
+                return;
+            }
+
             try {
-                // Build API URL for all watchlist items
+                // Build API URL for items that need updates
                 StringBuilder cryptoIds = new StringBuilder();
-                for (int i = 0; i < watchlist.size(); i++) {
+                for (int i = 0; i < itemsNeedingUpdate.size(); i++) {
                     if (i > 0) cryptoIds.append(",");
-                    cryptoIds.append(watchlist.get(i).id);
+                    cryptoIds.append(itemsNeedingUpdate.get(i).id);
                 }
                 
                 String apiUrl = "https://api.coingecko.com/api/v3/simple/price?ids=" + 
@@ -991,13 +1025,16 @@ public class WatchlistDataManager {
                 org.json.JSONObject jsonResponse = new org.json.JSONObject(response.toString());
                 int updatedPrices = 0;
                 
-                for (WatchlistData item : watchlist) {
+                for (WatchlistData item : itemsNeedingUpdate) {
                     if (jsonResponse.has(item.id)) {
                         org.json.JSONObject cryptoData = jsonResponse.getJSONObject(item.id);
                         if (cryptoData.has("usd")) {
                             double oldPrice = item.getCurrentPrice();
                             double newPrice = cryptoData.getDouble("usd");
                             item.updatePrice(newPrice);
+                            
+                            // Cache the new price
+                            CoinGeckoApiCache.cachePrice(item.id, newPrice);
                             
                             if (Math.abs(oldPrice - newPrice) > 0.01) { // Only log significant changes
                                 updatedPrices++;
@@ -1010,9 +1047,10 @@ public class WatchlistDataManager {
                 }
                 
                 LoggerUtil.info(WatchlistDataManager.class, 
-                    String.format("Price-only refresh completed: %d price updates", updatedPrices));
+                    String.format("Price-only refresh completed: %d price updates from API, %d from cache", 
+                                 updatedPrices, cachedPrices));
                 
-                if (updatedPrices > 0) {
+                if (updatedPrices > 0 || cachedPrices > 0) {
                     saveWatchlist(); // Save updated prices
                 }
                 

@@ -8,6 +8,7 @@ import model.TechnicalIndicators.SignalStrength;
 import model.TechnicalIndicators.TrendDirection;
 import model.TechnicalIndicators.EntryQuality;
 import util.LoggerUtil;
+import cache.CoinGeckoApiCache;
 
 import java.util.List;
 import java.util.ArrayList;
@@ -465,7 +466,23 @@ public class TechnicalAnalysisService {
      * @return List of PricePoint containing real OHLC data
      */
     private static List<PricePoint> fetchRealPriceHistory(String cryptoId, double currentPrice) {
-        return fetchRealPriceHistoryWithRetry(cryptoId, currentPrice, 0);
+        // Check cache first
+        List<PricePoint> cachedData = CoinGeckoApiCache.getCachedOHLCData(cryptoId);
+        if (cachedData != null) {
+            LoggerUtil.info(TechnicalAnalysisService.class, 
+                "Using cached OHLC data for " + cryptoId + " (" + cachedData.size() + " points)");
+            return cachedData;
+        }
+        
+        // Cache miss - fetch from API
+        List<PricePoint> apiData = fetchRealPriceHistoryWithRetry(cryptoId, currentPrice, 0);
+        
+        // Cache the result if we got valid data
+        if (apiData != null && !apiData.isEmpty() && apiData.size() > 10) {
+            CoinGeckoApiCache.cacheOHLCData(cryptoId, apiData);
+        }
+        
+        return apiData;
     }
     
     /**
@@ -635,6 +652,25 @@ public class TechnicalAnalysisService {
      * @param cryptoId The CoinGecko ID
      */
     private static void enhanceWithMarketData(TechnicalIndicators indicators, String cryptoId) {
+        // Check cache first
+        CoinGeckoApiCache.MarketDataResult cachedMarketData = CoinGeckoApiCache.getCachedMarketData(cryptoId);
+        if (cachedMarketData != null) {
+            LoggerUtil.debug(TechnicalAnalysisService.class, 
+                "Using cached market data for " + cryptoId);
+            
+            // Use cached price change to enhance trend analysis
+            if (cachedMarketData.priceChange7d > 5.0 && indicators.getTrend() == TrendDirection.NEUTRAL) {
+                indicators.setTrend(TrendDirection.BULLISH);
+                LoggerUtil.debug(TechnicalAnalysisService.class, 
+                    "Enhanced trend to BULLISH based on cached 7d price change: " + cachedMarketData.priceChange7d + "%");
+            } else if (cachedMarketData.priceChange7d < -5.0 && indicators.getTrend() == TrendDirection.NEUTRAL) {
+                indicators.setTrend(TrendDirection.BEARISH);
+                LoggerUtil.debug(TechnicalAnalysisService.class, 
+                    "Enhanced trend to BEARISH based on cached 7d price change: " + cachedMarketData.priceChange7d + "%");
+            }
+            return;
+        }
+        
         try {
             // Fix crypto ID mapping
             String correctedId = mapCryptoId(cryptoId);
@@ -672,28 +708,40 @@ public class TechnicalAnalysisService {
                 if (jsonResponse.has("market_data")) {
                     org.json.JSONObject marketData = jsonResponse.getJSONObject("market_data");
                     
+                    double marketCap = 0.0;
+                    double priceChange7d = 0.0;
+                    double priceChange24h = 0.0;
+                    
                     // Get price change percentages for trend confirmation
                     if (marketData.has("price_change_percentage_7d")) {
-                        double weeklyChange = marketData.getDouble("price_change_percentage_7d");
+                        priceChange7d = marketData.getDouble("price_change_percentage_7d");
                         
                         // Use weekly change to enhance trend analysis
-                        if (weeklyChange > 5.0 && indicators.getTrend() == TrendDirection.NEUTRAL) {
+                        if (priceChange7d > 5.0 && indicators.getTrend() == TrendDirection.NEUTRAL) {
                             indicators.setTrend(TrendDirection.BULLISH);
                             LoggerUtil.debug(TechnicalAnalysisService.class, 
-                                "Enhanced trend to BULLISH based on 7d price change: " + weeklyChange + "%");
-                        } else if (weeklyChange < -5.0 && indicators.getTrend() == TrendDirection.NEUTRAL) {
+                                "Enhanced trend to BULLISH based on 7d price change: " + priceChange7d + "%");
+                        } else if (priceChange7d < -5.0 && indicators.getTrend() == TrendDirection.NEUTRAL) {
                             indicators.setTrend(TrendDirection.BEARISH);
                             LoggerUtil.debug(TechnicalAnalysisService.class, 
-                                "Enhanced trend to BEARISH based on 7d price change: " + weeklyChange + "%");
+                                "Enhanced trend to BEARISH based on 7d price change: " + priceChange7d + "%");
                         }
+                    }
+                    
+                    // Get 24h price change
+                    if (marketData.has("price_change_percentage_24h")) {
+                        priceChange24h = marketData.getDouble("price_change_percentage_24h");
                     }
                     
                     // Get market cap for additional context
                     if (marketData.has("market_cap") && marketData.getJSONObject("market_cap").has("usd")) {
-                        double marketCap = marketData.getJSONObject("market_cap").getDouble("usd");
+                        marketCap = marketData.getJSONObject("market_cap").getDouble("usd");
                         LoggerUtil.debug(TechnicalAnalysisService.class, 
                             "Market cap for " + cryptoId + ": $" + String.format("%.0f", marketCap));
                     }
+                    
+                    // Cache the market data
+                    CoinGeckoApiCache.cacheMarketData(cryptoId, marketCap, priceChange7d, priceChange24h);
                 }
             } else if (connection.getResponseCode() == 429) {
                 LoggerUtil.debug(TechnicalAnalysisService.class, 
@@ -712,6 +760,14 @@ public class TechnicalAnalysisService {
      * @return Additional market data for volume analysis
      */
     private static double fetchCurrentVolume(String cryptoId) {
+        // Check cache first
+        Double cachedVolume = CoinGeckoApiCache.getCachedVolume(cryptoId);
+        if (cachedVolume != null) {
+            LoggerUtil.debug(TechnicalAnalysisService.class, 
+                "Using cached volume data for " + cryptoId + ": $" + String.format("%.0f", cachedVolume));
+            return cachedVolume;
+        }
+        
         try {
             // Fix crypto ID mapping
             String correctedId = mapCryptoId(cryptoId);
@@ -749,7 +805,12 @@ public class TechnicalAnalysisService {
                 if (jsonResponse.has("market_data")) {
                     org.json.JSONObject marketData = jsonResponse.getJSONObject("market_data");
                     if (marketData.has("total_volume") && marketData.getJSONObject("total_volume").has("usd")) {
-                        return marketData.getJSONObject("total_volume").getDouble("usd");
+                        double volume = marketData.getJSONObject("total_volume").getDouble("usd");
+                        
+                        // Cache the volume data
+                        CoinGeckoApiCache.cacheVolume(cryptoId, volume);
+                        
+                        return volume;
                     }
                 }
             } else if (connection.getResponseCode() == 429) {

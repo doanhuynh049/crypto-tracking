@@ -5,6 +5,7 @@ import data.PortfolioDataManager;
 import ui.dialog.AddCryptoDialog;
 import ui.dialog.AiAnalysisDialog;
 import util.LoggerUtil;
+import util.CacheManagerUtil;
 
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
@@ -35,6 +36,7 @@ public class PortfolioUIBuilder {
     private JLabel statusLabel;
     private JLabel portfolioValueLabel;
     private JLabel aiStatusLabel; // New AI status label
+    private JLabel cacheStatusLabel; // New cache status label
     private DecimalFormat priceFormat = new DecimalFormat("$#,##0.00");
     private DecimalFormat percentFormat = new DecimalFormat("+#0.00%;-#0.00%");
     private DecimalFormat amountFormat = new DecimalFormat("#,##0.########");
@@ -80,9 +82,15 @@ public class PortfolioUIBuilder {
         aiStatusLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
         aiStatusLabel.setForeground(new Color(255, 193, 7));
         
+        // Cache Status label
+        cacheStatusLabel = new JLabel("⚡ Cache: Initializing...");
+        cacheStatusLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        cacheStatusLabel.setForeground(new Color(76, 175, 80));
+        
         statusPanel.add(portfolioValueLabel);
         statusPanel.add(statusLabel);
         statusPanel.add(aiStatusLabel);
+        statusPanel.add(cacheStatusLabel);
         
         return statusPanel;
     }
@@ -833,7 +841,35 @@ public class PortfolioUIBuilder {
     public JButton getRefreshButton() { return refreshButton; }
     public JLabel getStatusLabel() { return statusLabel; }
     public JLabel getAiStatusLabel() { return aiStatusLabel; }
-    
+    public JLabel getCacheStatusLabel() { return cacheStatusLabel; }
+
+    /**
+     * Update cache status display with current cache statistics
+     */
+    public void updateCacheStatus() {
+        if (cacheStatusLabel == null) return;
+        
+        String cacheStats = CacheManagerUtil.getFormattedCacheStats();
+        double efficiency = CacheManagerUtil.getCacheEfficiency();
+        
+        if (efficiency >= 80) {
+            cacheStatusLabel.setText("⚡ Cache: " + cacheStats);
+            cacheStatusLabel.setForeground(new Color(76, 175, 80)); // Green for excellent
+        } else if (efficiency >= 60) {
+            cacheStatusLabel.setText("⚡ Cache: " + cacheStats);
+            cacheStatusLabel.setForeground(new Color(33, 150, 243)); // Blue for good
+        } else if (efficiency >= 40) {
+            cacheStatusLabel.setText("⚡ Cache: " + cacheStats);
+            cacheStatusLabel.setForeground(new Color(255, 193, 7)); // Yellow for moderate
+        } else if (efficiency > 0) {
+            cacheStatusLabel.setText("⚡ Cache: " + cacheStats);
+            cacheStatusLabel.setForeground(new Color(255, 87, 34)); // Orange for poor
+        } else {
+            cacheStatusLabel.setText("⚡ Cache: Initializing...");
+            cacheStatusLabel.setForeground(new Color(117, 117, 117)); // Gray for no data
+        }
+    }
+
     // Enhanced custom table cell renderer with decorative styling
     private class EnhancedPortfolioTableCellRenderer extends DefaultTableCellRenderer {
         @Override
