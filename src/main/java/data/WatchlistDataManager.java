@@ -115,8 +115,6 @@ public class WatchlistDataManager {
                     String.format("Updated %s price: %.2f -> %.2f", 
                         symbol, oldPrice, newPrice));
                 
-                // Re-analyze after price update
-                analyzeWatchlistItem(watchlistItem);
                 saveWatchlist();
             }
         }

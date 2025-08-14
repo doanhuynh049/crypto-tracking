@@ -271,9 +271,6 @@ public class PortfolioDataManager {
                     uiBuilder.getRefreshButton().setText("🔄 Refresh Prices");
                 }
                 updatePortfolioValue();
-                
-                // Trigger technical analysis after price updates
-                refreshTechnicalAnalysis();
             }
         };
         worker.execute();
