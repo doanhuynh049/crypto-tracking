@@ -47,6 +47,10 @@ public class WatchlistPanel extends JPanel implements CleanupablePanel {
     // Auto-refresh timer for price updates
     private Timer priceRefreshTimer;
     
+    // Debouncing for updateTableData calls
+    private Timer updateTableDataTimer;
+    private final int UPDATE_DELAY_MS = 300; // 300ms debounce delay
+    
     // Modern color scheme matching the main app
     private static final Color PRIMARY_COLOR = new Color(25, 118, 210);
     private static final Color SUCCESS_COLOR = new Color(76, 175, 80);
@@ -72,7 +76,6 @@ public class WatchlistPanel extends JPanel implements CleanupablePanel {
                     LoggerUtil.debug(WatchlistPanel.class, 
                         "=== Technical Analysis Complete Callback for " + item.getSymbol() + " ===");
                     
-                    // Update UI on EDT
                     SwingUtilities.invokeLater(() -> {
                         updateTableData();
                         updateStats();
@@ -86,7 +89,6 @@ public class WatchlistPanel extends JPanel implements CleanupablePanel {
                     LoggerUtil.debug(WatchlistPanel.class, 
                         "=== All Technical Analysis Complete Callback ===");
                     
-                    // Update UI on EDT
                     SwingUtilities.invokeLater(() -> {
                         updateTableData();
                         updateStats();
@@ -101,9 +103,6 @@ public class WatchlistPanel extends JPanel implements CleanupablePanel {
             
             // Load initial data
             refreshWatchlistData();
-            
-            // Start auto-refresh for price updates
-            startAutoRefresh();
             
             LoggerUtil.info(WatchlistPanel.class, "=== Watchlist Panel initialized successfully ===");
         } catch (Exception e) {
@@ -711,8 +710,9 @@ public class WatchlistPanel extends JPanel implements CleanupablePanel {
      * Update table with current watchlist data
      */
     private void updateTableData() {
+        Thread.dumpStack();
         // Clear existing rows
-        LoggerUtil.debug(WatchlistPanel.class, ">>> Clearing existing table rows");
+        LoggerUtil.info(WatchlistPanel.class, ">>> Clearing existing table rows");
         tableModel.setRowCount(0);
         
         // Add watchlist items
@@ -751,7 +751,6 @@ public class WatchlistPanel extends JPanel implements CleanupablePanel {
             tableModel.addRow(rowData);
         }
     }
-    
     /**
      * Update watchlist statistics
      */
@@ -978,26 +977,6 @@ public class WatchlistPanel extends JPanel implements CleanupablePanel {
     }
     
     /**
-     * Start auto-refresh timer for price updates (every 15 seconds)
-     * This updates only prices, not technical analysis, for better performance
-     */
-    public void startAutoRefresh() {
-        LoggerUtil.info(WatchlistPanel.class, "Starting watchlist auto-refresh timer (15s interval)");
-        
-        // Auto-refresh every 15 seconds to match Portfolio panel and work well with API coordination
-        priceRefreshTimer = new Timer(15000, e -> {
-            // Only refresh prices if not in the middle of technical analysis
-            if (dataManager.getApiCoordinator().canMakeApiCall("WatchlistPanel", "auto-refresh")) {
-                refreshPricesOnly();
-            } else {
-                LoggerUtil.debug(WatchlistPanel.class, 
-                    "Skipping auto price refresh - technical analysis in progress");
-            }
-        });
-        priceRefreshTimer.start();
-    }
-    
-    /**
      * Stop auto-refresh timer (useful for cleanup)
      */
     public void stopAutoRefresh() {
@@ -1087,60 +1066,6 @@ public class WatchlistPanel extends JPanel implements CleanupablePanel {
     public JLabel getCacheStatusLabel() {
         return cacheStatusLabel;
     }
-
-    // =================================================================================
-    // CleanupablePanel Interface Implementation
-    // =================================================================================
-
-    @Override
-    public void cleanup() {
-        LoggerUtil.info(WatchlistPanel.class, "🧹 Cleaning up WatchlistPanel - stopping all background operations");
-        
-        // Stop auto-refresh timer
-        stopAutoRefresh();
-        
-        // Stop any ongoing technical analysis in data manager
-        if (dataManager != null) {
-            try {
-                // Cancel any running analysis tasks
-                dataManager.cancelAllAnalysis();
-                LoggerUtil.info(WatchlistPanel.class, "Cancelled all technical analysis tasks");
-            } catch (Exception e) {
-                LoggerUtil.warning(WatchlistPanel.class, "Error cancelling analysis tasks: " + e.getMessage());
-            }
-        }
-        
-        LoggerUtil.info(WatchlistPanel.class, "✅ WatchlistPanel cleanup completed");
-    }
-
-    @Override
-    public void activate() {
-        LoggerUtil.info(WatchlistPanel.class, "🚀 Activating WatchlistPanel - starting background operations");
-        
-        // Start auto-refresh timer
-        startAutoRefresh();
-        
-        // Refresh data to ensure we have current information
-        SwingUtilities.invokeLater(() -> {
-            updateTableData();
-            updateStats();
-            updateCacheStatus();
-            statusLabel.setText("✅ Panel activated");
-            statusLabel.setForeground(SUCCESS_COLOR);
-        });
-        
-        LoggerUtil.info(WatchlistPanel.class, "✅ WatchlistPanel activation completed");
-    }
-
-    @Override
-    public boolean hasActiveOperations() {
-        boolean hasTimer = (priceRefreshTimer != null && priceRefreshTimer.isRunning());
-        boolean hasAnalysis = (dataManager != null && dataManager.isAnalyzing());
-        
-        return hasTimer || hasAnalysis;
-    }
-
-    // =================================================================================
 
     /**
      * Get fresh price from cache or API for an item

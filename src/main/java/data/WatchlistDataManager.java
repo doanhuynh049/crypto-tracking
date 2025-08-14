@@ -11,8 +11,10 @@ import util.LoggerUtil;
 import java.io.*;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import javax.swing.Timer;
+import javax.swing.SwingUtilities;
 
 /**
  * Data Manager for Cryptocurrency Watchlist
@@ -20,8 +22,8 @@ import javax.swing.Timer;
  */
 public class WatchlistDataManager {
     
-    private static final String WATCHLIST_FILE = "data/watchlist.dat";
-    private static final String BACKUP_FILE = "data/watchlist_backup.dat";
+    private static final String WATCHLIST_FILE = "src/data/watchlist.dat";
+    private static final String BACKUP_FILE = "src/data/watchlist_backup.dat";
     private String TAG = "WatchlistDataManager";
     private List<WatchlistData> watchlist;
     private final Object lock = new Object();
@@ -55,11 +57,11 @@ public class WatchlistDataManager {
         this.uiCallback = callback;
         LoggerUtil.debug(WatchlistDataManager.class, "UI callback set for technical analysis updates");
     }
-    
+
     /**
      * Add cryptocurrency to watchlist
      */
-    public boolean addToWatchlist(String symbol, String name, double currentPrice) {
+    public boolean addToWatchlist(String id, String name, double currentPrice) {
         synchronized (lock) {
             // Check if already exists
             if (isInWatchlist(symbol)) {
@@ -70,7 +72,7 @@ public class WatchlistDataManager {
             
             // Need to provide all required constructor parameters
             WatchlistData watchlistItem = new WatchlistData(
-                symbol.toLowerCase(), // id
+                id,          // Use proper CoinGecko ID
                 name,                 // name  
                 symbol.toUpperCase(), // symbol
                 currentPrice,         // currentPrice
@@ -81,7 +83,7 @@ public class WatchlistDataManager {
             watchlist.add(watchlistItem);
             
             LoggerUtil.info(WatchlistDataManager.class, 
-                "Added " + symbol + " to watchlist");
+                String.format("Added %s to watchlist with CoinGecko ID: %s", symbol, coinGeckoId));
             
             // Perform initial technical analysis
             analyzeWatchlistItem(watchlistItem);
@@ -286,9 +288,17 @@ public class WatchlistDataManager {
     
     /**
      * Analyze watchlist items one by one with delays to prevent rate limiting
+     * This method runs asynchronously to avoid blocking the UI
      */
     private void analyzeWatchlistItemsSequentially(int index) {
+        // Check if analysis was cancelled
         synchronized (lock) {
+            if (!isAnalyzing) {
+                LoggerUtil.info(WatchlistDataManager.class, 
+                    "Analysis was cancelled, stopping sequential analysis");
+                return;
+            }
+            
             if (index >= watchlist.size()) {
                 // All items processed - NOW we can mark completion
                 saveWatchlist();
@@ -297,7 +307,7 @@ public class WatchlistDataManager {
                 
                 // Notify UI that all analysis is complete
                 if (uiCallback != null) {
-                    uiCallback.onAllAnalysisComplete();
+                    SwingUtilities.invokeLater(() -> uiCallback.onAllAnalysisComplete());
                 }
                 
                 // Mark analysis as complete and notify API coordinator
@@ -305,33 +315,34 @@ public class WatchlistDataManager {
                 apiCoordinator.notifyIntensiveOperationComplete("WatchlistDataManager");
                 return;
             }
-            
-            WatchlistData item = watchlist.get(index);
-            LoggerUtil.info(WatchlistDataManager.class, 
-                "Analyzing watchlist item " + item.getSymbol() + " (" + (index + 1) + "/" + watchlist.size() + ")");
-            
-            // Analyze current item
-            analyzeWatchlistItem(item)
-                .thenRun(() -> {
-                    // Add delay before next item to prevent rate limiting
-                    Timer delayTimer = new Timer(12000, e -> { // Increased to 12 seconds
-                        analyzeWatchlistItemsSequentially(index + 1);
-                    });
-                    delayTimer.setRepeats(false);
-                    delayTimer.start();
-                })
-                .exceptionally(ex -> {
-                    LoggerUtil.error(WatchlistDataManager.class, 
-                        "Error analyzing " + item.getSymbol() + ": " + ex.getMessage(), ex);
-                    // Continue with next item even if current one fails
-                    Timer delayTimer = new Timer(12000, e -> {
-                        analyzeWatchlistItemsSequentially(index + 1);
-                    });
-                    delayTimer.setRepeats(false);
-                    delayTimer.start();
-                    return null;
-                });
         }
+        
+        WatchlistData item;
+        synchronized (lock) {
+            if (index >= watchlist.size()) return; // Double check in case list changed
+            item = watchlist.get(index);
+        }
+        
+        LoggerUtil.info(WatchlistDataManager.class, 
+            "Analyzing watchlist item " + item.getSymbol() + " (" + (index + 1) + "/" + watchlist.size() + ")");
+        
+        // Analyze current item asynchronously
+        analyzeWatchlistItem(item)
+            .thenRunAsync(() -> {
+                // Schedule next item analysis with delay - using background thread to avoid UI blocking
+                CompletableFuture.delayedExecutor(12, TimeUnit.SECONDS).execute(() -> {
+                    analyzeWatchlistItemsSequentially(index + 1);
+                });
+            })
+            .exceptionally(ex -> {
+                LoggerUtil.error(WatchlistDataManager.class, 
+                    "Error analyzing " + item.getSymbol() + ": " + ex.getMessage(), ex);
+                // Continue with next item even if current one fails
+                CompletableFuture.delayedExecutor(12, TimeUnit.SECONDS).execute(() -> {
+                    analyzeWatchlistItemsSequentially(index + 1);
+                });
+                return null;
+            });
     }
     
     /**
@@ -857,11 +868,11 @@ public class WatchlistDataManager {
             int updated = 0;
             
             for (CryptoData cryptoData : portfolioData) {
-                String symbol = cryptoData.symbol;
+                String id = cryptoData.id;
                 
                 // Check if already exists in watchlist
                 Optional<WatchlistData> existing = watchlist.stream()
-                    .filter(item -> item.getSymbol().equals(symbol))
+                    .filter(item -> item.getSymbol().equals(id))
                     .findFirst();
                 
                 if (existing.isPresent()) {
@@ -889,9 +900,9 @@ public class WatchlistDataManager {
                 } else {
                     // Create new watchlist item from portfolio data
                     WatchlistData newItem = new WatchlistData(
-                        symbol.toLowerCase(),
+                        cryptoData.id,
                         cryptoData.name,
-                        symbol.toUpperCase(),
+                        cryptoData.symbol,
                         cryptoData.currentPrice,
                         cryptoData.expectedPrice > 0 ? cryptoData.expectedPrice : cryptoData.currentPrice * 0.95,
                         cryptoData.targetPrice3Month > 0 ? cryptoData.targetPrice3Month : cryptoData.currentPrice * 1.20,
@@ -899,11 +910,6 @@ public class WatchlistDataManager {
                         cryptoData.holdings,
                         cryptoData.avgBuyPrice
                     );
-                    
-                    // Copy AI data if available
-                    if (cryptoData.aiAdvice != null && !cryptoData.aiAdvice.equals("Loading...")) {
-                        newItem.setAiAdvice(cryptoData.aiAdvice, cryptoData.isAiGenerated);
-                    }
                     
                     // Copy technical analysis if available
                     if (cryptoData.technicalIndicators != null) {
@@ -1087,5 +1093,59 @@ public class WatchlistDataManager {
      */
     public ApiCoordinationService getApiCoordinator() {
         return apiCoordinator;
+    }
+    
+    /**
+     * Check if the current right panel in the main application is a WatchlistPanel
+     * This helps avoid unnecessary data updates when the WatchlistPanel is not visible
+     */
+    public boolean isWatchlistPanelCurrentlyActive() {
+        try {
+            // Look for the main application window
+            javax.swing.JFrame mainFrame = null;
+            for (java.awt.Window window : java.awt.Window.getWindows()) {
+                if (window instanceof javax.swing.JFrame && 
+                    ((javax.swing.JFrame) window).getTitle().contains("Crypto Portfolio Manager")) {
+                    mainFrame = (javax.swing.JFrame) window;
+                    break;
+                }
+            }
+            
+            if (mainFrame == null) {
+                LoggerUtil.debug(WatchlistDataManager.class, "Main application frame not found");
+                return false;
+            }
+            
+            // Find the content panel (should be in BorderLayout.CENTER)
+            java.awt.Container contentPane = mainFrame.getContentPane();
+            return findWatchlistPanelInContainer(contentPane);
+            
+        } catch (Exception e) {
+            LoggerUtil.debug(WatchlistDataManager.class, 
+                "Error checking if WatchlistPanel is active: " + e.getMessage());
+            // If we can't determine, assume it's active to be safe
+            return true;
+        }
+    }
+    
+    /**
+     * Recursively search for WatchlistPanel in container hierarchy
+     */
+    private boolean findWatchlistPanelInContainer(java.awt.Container container) {
+        for (java.awt.Component component : container.getComponents()) {
+            // Check if this component is a WatchlistPanel
+            if (component.getClass().getName().contains("WatchlistPanel")) {
+                LoggerUtil.debug(WatchlistDataManager.class, "Found active WatchlistPanel");
+                return true;
+            }
+            
+            // If it's a container, recursively search
+            if (component instanceof java.awt.Container) {
+                if (findWatchlistPanelInContainer((java.awt.Container) component)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 }
