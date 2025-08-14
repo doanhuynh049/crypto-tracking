@@ -94,7 +94,7 @@ public class CryptoMainApp extends JFrame {
     }
     
     private void initializeNavigationItems() {
-        LoggerUtil.debug(CryptoMainApp.class, "Initializing navigation items");
+        LoggerUtil.info(CryptoMainApp.class, "Initializing navigation items");
         navigationItems = new ArrayList<>();
         navigationItems.add(new NavigationItem("📊", "Portfolio Overview", "Portfolio allocation and AI-powered rebalancing"));
         navigationItems.add(new NavigationItem("💰", "My Portfolio", "View and manage your crypto portfolio"));
@@ -106,7 +106,7 @@ public class CryptoMainApp extends JFrame {
     }
     
     private void setupUI() {
-        LoggerUtil.debug(CryptoMainApp.class, "Setting up user interface");
+        LoggerUtil.info(CryptoMainApp.class, "Setting up user interface");
         setTitle("🚀 Crypto Portfolio Manager");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         
@@ -158,6 +158,7 @@ public class CryptoMainApp extends JFrame {
     }
     
     private JPanel createNavigationPanel() {
+        LoggerUtil.info(CryptoMainApp.class, "Creating navigation panel");
         JPanel navPanel = new JPanel();
         navPanel.setLayout(new BorderLayout());
         navPanel.setBackground(NAV_COLOR);
@@ -180,6 +181,7 @@ public class CryptoMainApp extends JFrame {
     }
     
     private JPanel createNavigationHeader() {
+        LoggerUtil.debug(CryptoMainApp.class, "Creating navigation header");
         JPanel headerPanel = new JPanel();
         headerPanel.setLayout(new BoxLayout(headerPanel, BoxLayout.Y_AXIS));
         headerPanel.setBackground(NAV_COLOR);
@@ -205,6 +207,7 @@ public class CryptoMainApp extends JFrame {
     }
     
     private JPanel createNavigationItems() {
+        LoggerUtil.debug(CryptoMainApp.class, "Creating navigation item buttons");
         JPanel itemsPanel = new JPanel();
         itemsPanel.setLayout(new BoxLayout(itemsPanel, BoxLayout.Y_AXIS));
         itemsPanel.setBackground(NAV_COLOR);
@@ -220,6 +223,7 @@ public class CryptoMainApp extends JFrame {
     }
     
     private JPanel createNavigationButton(NavigationItem item) {
+        LoggerUtil.debug(CryptoMainApp.class, "Creating navigation button for: " + item.title);
         JPanel button = new JPanel(new BorderLayout());
         button.setBackground(NAV_COLOR);
         button.setBorder(new EmptyBorder(12, 20, 12, 20));
@@ -276,6 +280,7 @@ public class CryptoMainApp extends JFrame {
     }
     
     private JPanel createNavigationFooter() {
+        LoggerUtil.debug(CryptoMainApp.class, "Creating navigation footer");
         JPanel footerPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
         footerPanel.setBackground(NAV_COLOR);
         footerPanel.setBorder(new EmptyBorder(20, 20, 20, 20));
