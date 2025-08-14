@@ -237,6 +237,12 @@ public class WatchlistData implements Serializable {
     public String getSymbol() {
         return symbol;
     }
+        /**
+     * Get the cryptocurrency id
+     */
+    public String getID() {
+        return id;
+    }
     
     /**
      * Get the current price

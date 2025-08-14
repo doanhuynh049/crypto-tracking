@@ -27,7 +27,7 @@ import java.util.Map;
  * Watchlist Panel for tracking cryptocurrency entry opportunities
  * Distinguished from portfolio holdings - focuses on technical analysis and entry signals
  */
-public class WatchlistPanel extends JPanel implements CleanupablePanel {
+public class WatchlistPanel extends JPanel {
     
     // UI Components
     private DefaultTableModel tableModel;
@@ -77,7 +77,7 @@ public class WatchlistPanel extends JPanel implements CleanupablePanel {
                         "=== Technical Analysis Complete Callback for " + item.getSymbol() + " ===");
                     
                     SwingUtilities.invokeLater(() -> {
-                        updateTableData();
+                        // updateTableData();
                         updateStats();
                         statusLabel.setText("✅ " + item.getSymbol() + " analyzed");
                         statusLabel.setForeground(SUCCESS_COLOR);

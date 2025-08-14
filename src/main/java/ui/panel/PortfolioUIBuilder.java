@@ -479,6 +479,7 @@ public class PortfolioUIBuilder {
      * Show add cryptocurrency dialog using the new dedicated dialog class
      */
     private void showAddCryptoDialog() {
+        LoggerUtil.info(PortfolioUIBuilder.class, "Opening Add Cryptocurrency dialog");
         Frame parentFrame = (Frame) SwingUtilities.getWindowAncestor(cryptoTable);
         AddCryptoDialog dialog = new AddCryptoDialog(parentFrame, dataManager);
         dialog.showDialog();

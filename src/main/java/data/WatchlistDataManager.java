@@ -64,9 +64,9 @@ public class WatchlistDataManager {
     public boolean addToWatchlist(String id, String name, double currentPrice) {
         synchronized (lock) {
             // Check if already exists
-            if (isInWatchlist(symbol)) {
+            if (isInWatchlist(id)) {
                 LoggerUtil.warning(WatchlistDataManager.class, 
-                    "Symbol " + symbol + " already exists in watchlist");
+                    "id " + id + " already exists in watchlist");
                 return false;
             }
             
@@ -74,7 +74,7 @@ public class WatchlistDataManager {
             WatchlistData watchlistItem = new WatchlistData(
                 id,          // Use proper CoinGecko ID
                 name,                 // name  
-                symbol.toUpperCase(), // symbol
+                name, // id
                 currentPrice,         // currentPrice
                 currentPrice * 0.95,  // expectedEntry (5% below current)
                 currentPrice * 1.20,  // targetPrice3Month (20% above)
@@ -83,7 +83,7 @@ public class WatchlistDataManager {
             watchlist.add(watchlistItem);
             
             LoggerUtil.info(WatchlistDataManager.class, 
-                String.format("Added %s to watchlist with CoinGecko ID: %s", symbol, coinGeckoId));
+                String.format("Added %s to watchlist with CoinGecko ID: %s", name, id));
             
             // Perform initial technical analysis
             analyzeWatchlistItem(watchlistItem);
@@ -741,56 +741,6 @@ public class WatchlistDataManager {
     }
     
     /**
-     * Remove/sell holdings from portfolio item
-     */
-    public boolean sellPortfolioHoldings(String symbol, double amount) {
-        synchronized (lock) {
-            Optional<WatchlistData> item = watchlist.stream()
-                .filter(w -> w.getSymbol().equals(symbol) && w.hasHoldings())
-                .findFirst();
-            
-            if (item.isPresent()) {
-                WatchlistData portfolioItem = item.get();
-                boolean success = portfolioItem.removeHoldings(amount);
-                
-                if (success) {
-                    LoggerUtil.info(WatchlistDataManager.class, 
-                        String.format("Sold %.4f %s holdings", amount, symbol));
-                    saveWatchlistData();
-                }
-                
-                return success;
-            }
-            
-            return false;
-        }
-    }
-    
-    /**
-     * Update holdings for portfolio item directly
-     */
-    public boolean updatePortfolioHoldings(String symbol, double newHoldings, double newAvgPrice) {
-        synchronized (lock) {
-            Optional<WatchlistData> item = watchlist.stream()
-                .filter(w -> w.getSymbol().equals(symbol))
-                .findFirst();
-            
-            if (item.isPresent()) {
-                WatchlistData portfolioItem = item.get();
-                portfolioItem.setHoldings(newHoldings, newAvgPrice);
-                
-                LoggerUtil.info(WatchlistDataManager.class, 
-                    String.format("Updated %s holdings: %.4f @ $%.2f", symbol, newHoldings, newAvgPrice));
-                
-                saveWatchlistData();
-                return true;
-            }
-            
-            return false;
-        }
-    }
-    
-    /**
      * Convert watchlist item to portfolio item by adding holdings
      */
     public boolean convertToPortfolioItem(String symbol, double amount, double buyPrice) {
@@ -872,7 +822,7 @@ public class WatchlistDataManager {
                 
                 // Check if already exists in watchlist
                 Optional<WatchlistData> existing = watchlist.stream()
-                    .filter(item -> item.getSymbol().equals(id))
+                    .filter(item -> item.getID().equals(id))
                     .findFirst();
                 
                 if (existing.isPresent()) {

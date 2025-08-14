@@ -521,8 +521,6 @@ public class CryptoMainApp extends JFrame {
                     
                     if (imported) {
                         LoggerUtil.info(CryptoMainApp.class, "Successfully imported portfolio data into watchlist");
-                        // Refresh the watchlist panel to show the imported data
-                        watchlistPanel.refreshWatchlistData();
                     } else {
                         LoggerUtil.info(CryptoMainApp.class, "No portfolio data to import into watchlist");
                     }
