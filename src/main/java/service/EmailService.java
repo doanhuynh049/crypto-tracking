@@ -30,6 +30,7 @@ public class EmailService {
      * Get email credentials from secure configuration
      */
     private static EmailConfig getEmailConfig() {
+        LoggerUtil.info(EmailService.class, "Executing getEmailConfig()");
         // Obfuscated email configuration - credentials are encoded for security
         return new EmailConfig(
             decodeCredential("cXVvY3RoaWVuMDQ5QGdtYWlsLmNvbQ=="),
@@ -42,6 +43,7 @@ public class EmailService {
      * Decode base64 encoded credentials
      */
     private static String decodeCredential(String encoded) {
+        LoggerUtil.info(EmailService.class, "Executing decodeCredential(encoded=" + encoded + ")");
         try {
             return new String(java.util.Base64.getDecoder().decode(encoded));
         } catch (Exception e) {
@@ -54,6 +56,7 @@ public class EmailService {
      * Check if email service is available
      */
     public static boolean isAvailable() {
+        LoggerUtil.info(EmailService.class, "Executing isAvailable()");
         try {
             EmailConfig config = getEmailConfig();
             return config.fromEmail != null && !config.fromEmail.isEmpty() &&
@@ -69,6 +72,7 @@ public class EmailService {
      * Send daily portfolio report via email
      */
     public static boolean sendDailyReport(List<CryptoData> cryptoList, File screenshotFile) {
+        LoggerUtil.info(EmailService.class, "Executing sendDailyReport(cryptoList.size=" + (cryptoList != null ? cryptoList.size() : 0) + ", screenshotFile=" + (screenshotFile != null ? screenshotFile.getName() : "null") + ")");
         if (!isAvailable()) {
             LoggerUtil.error(EmailService.class, "Email service not available");
             return false;
@@ -129,6 +133,7 @@ public class EmailService {
      * Send test email to verify configuration
      */
     public static boolean sendTestEmail() {
+        LoggerUtil.info(EmailService.class, "Executing sendTestEmail()");
         if (!isAvailable()) {
             LoggerUtil.error(EmailService.class, "Email service not available for test");
             return false;
@@ -164,6 +169,7 @@ public class EmailService {
      * Create email session with SMTP configuration
      */
     private static Session createEmailSession(EmailConfig config) {
+        LoggerUtil.info(EmailService.class, "Executing createEmailSession(config.fromEmail=" + (config != null ? config.fromEmail : "null") + ")");
         Properties props = new Properties();
         props.put("mail.smtp.host", SMTP_HOST);
         props.put("mail.smtp.port", SMTP_PORT);
@@ -189,6 +195,7 @@ public class EmailService {
      * Create HTML email content for daily report
      */
     private static String createHtmlReport(List<CryptoData> cryptoList) {
+        LoggerUtil.info(EmailService.class, "Executing createHtmlReport(cryptoList.size=" + (cryptoList != null ? cryptoList.size() : 0) + ")");
         StringBuilder html = new StringBuilder();
         
         // Calculate portfolio summary
@@ -311,6 +318,7 @@ public class EmailService {
      * Create test email content
      */
     private static String createTestEmailContent() {
+        LoggerUtil.info(EmailService.class, "Executing createTestEmailContent()");
         StringBuilder html = new StringBuilder();
         
         html.append("<!DOCTYPE html>");
@@ -346,6 +354,7 @@ public class EmailService {
      * Get CSS styles for email
      */
     private static String getEmailStyles() {
+        LoggerUtil.info(EmailService.class, "Executing getEmailStyles()");
         return """
             body {
                 font-family: 'Segoe UI', Arial, sans-serif;
@@ -515,6 +524,7 @@ public class EmailService {
      * Calculate portfolio summary statistics
      */
     private static PortfolioSummary calculatePortfolioSummary(List<CryptoData> cryptoList) {
+        LoggerUtil.info(EmailService.class, "Executing calculatePortfolioSummary(cryptoList.size=" + (cryptoList != null ? cryptoList.size() : 0) + ")");
         double totalValue = 0;
         double totalProfitLoss = 0;
         String bestPerformer = "N/A";
@@ -553,6 +563,7 @@ public class EmailService {
      * Get AI analysis for a specific cryptocurrency for email report
      */
     private static String getAiAnalysisForEmail(CryptoData crypto) {
+        LoggerUtil.info(EmailService.class, "Executing getAiAnalysisForEmail(crypto.symbol=" + (crypto != null ? crypto.symbol : "null") + ")");
         try {
             LoggerUtil.debug(EmailService.class, "Getting AI analysis for " + crypto.symbol + " for email report");
             
@@ -578,6 +589,7 @@ public class EmailService {
      * Format AI analysis for email display (improved version)
      */
     private static String formatAiAnalysisForEmail(String analysis) {
+        LoggerUtil.info(EmailService.class, "Executing formatAiAnalysisForEmail()");
         if (analysis == null || analysis.trim().isEmpty()) {
             return "<p style='color: #666; font-style: italic;'>No analysis available</p>";
         }
@@ -644,6 +656,7 @@ public class EmailService {
      * Clean up analysis text and remove duplicates
      */
     private static String cleanupAnalysisText(String analysis) {
+        LoggerUtil.info(EmailService.class, "Executing cleanupAnalysisText()");
         // Remove duplicate summary lines
         String cleaned = analysis.replaceAll("(?m)^📊 Summary:\\s*$", "");
         
@@ -667,6 +680,7 @@ public class EmailService {
      * Format section header with proper emoji and styling
      */
     private static String formatSectionHeader(String header) {
+        LoggerUtil.info(EmailService.class, "Executing formatSectionHeader(header=" + header + ")");
         // Clean up header text
         header = header.replaceAll("\\*\\*", "").trim();
         
@@ -680,6 +694,7 @@ public class EmailService {
      * Format section content with proper bullet points and styling
      */
     private static String formatSectionContent(String content) {
+        LoggerUtil.info(EmailService.class, "Executing formatSectionContent()");
         StringBuilder html = new StringBuilder();
         String[] lines = content.split("\n");
         
@@ -725,6 +740,7 @@ public class EmailService {
      * Format content lines for email (improved version)
      */
     private static String formatEmailContentLine(String content) {
+        LoggerUtil.info(EmailService.class, "Executing formatEmailContentLine()");
         if (content == null) return "";
         
         try {
@@ -758,14 +774,13 @@ public class EmailService {
         final double totalValue;
         final double totalProfitLoss;
         final String bestPerformer;
-        
         PortfolioSummary(double totalValue, double totalProfitLoss, String bestPerformer) {
+            LoggerUtil.info(EmailService.class, "Constructing PortfolioSummary(totalValue=" + totalValue + ", totalProfitLoss=" + totalProfitLoss + ", bestPerformer=" + bestPerformer + ")");
             this.totalValue = totalValue;
             this.totalProfitLoss = totalProfitLoss;
             this.bestPerformer = bestPerformer;
         }
     }
-    
     /**
      * Email configuration data class
      */
@@ -773,8 +788,8 @@ public class EmailService {
         final String fromEmail;
         final String password;
         final String toEmail;
-        
         EmailConfig(String fromEmail, String password, String toEmail) {
+            LoggerUtil.info(EmailService.class, "Constructing EmailConfig(fromEmail=" + fromEmail + ", toEmail=" + toEmail + ")");
             this.fromEmail = fromEmail;
             this.password = password;
             this.toEmail = toEmail;

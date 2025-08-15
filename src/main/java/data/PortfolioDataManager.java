@@ -1068,11 +1068,6 @@ public class PortfolioDataManager {
             Object obj = ois.readObject();
             if (obj instanceof List<?>) {
                 cryptoList = (List<CryptoData>) obj;
-                // Initialize AI fields for backward compatibility
-                for (CryptoData crypto : cryptoList) {
-                    crypto.initializeAiFields();
-                }
-                
                 // Calculate and store hash of loaded data for comparison
                 lastSavedDataHash = calculateDataHash();
                 

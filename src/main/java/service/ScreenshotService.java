@@ -35,6 +35,7 @@ public class ScreenshotService {
      * @return File containing the screenshot, or null if capture failed
      */
     public static File capturePortfolioScreenshot(JFrame mainFrame) {
+        LoggerUtil.info(ScreenshotService.class, "Capturing portfolio screenshot");
         if (mainFrame == null) {
             LoggerUtil.error(ScreenshotService.class, "Cannot capture screenshot: main frame is null");
             return null;
@@ -115,6 +116,7 @@ public class ScreenshotService {
      * @return File containing the screenshot, or null if capture failed
      */
     public static File captureComponentScreenshot(Component component) {
+        LoggerUtil.info(ScreenshotService.class, "Capturing component screenshot");
         if (component == null) {
             LoggerUtil.error(ScreenshotService.class, "Cannot capture component screenshot: component is null");
             return null;
@@ -172,6 +174,7 @@ public class ScreenshotService {
      * This is a fallback method when direct frame capture doesn't work
      */
     public static File captureDesktopScreenshot() {
+        LoggerUtil.info(ScreenshotService.class, "Capturing desktop screenshot");
         try {
             LoggerUtil.info(ScreenshotService.class, "Capturing desktop screenshot");
             
@@ -212,6 +215,7 @@ public class ScreenshotService {
      * Create optimized screenshot with fixed dimensions and quality
      */
     private static BufferedImage createOptimizedScreenshot(BufferedImage originalImage) {
+        LoggerUtil.info(ScreenshotService.class, "Creating optimized screenshot");
         if (originalImage == null) {
             return null;
         }
@@ -256,6 +260,7 @@ public class ScreenshotService {
      * Add timestamp watermark to screenshot
      */
     private static void addTimestampWatermark(Graphics2D g2d) {
+        LoggerUtil.info(ScreenshotService.class, "Adding timestamp watermark to screenshot");
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
         
         // Configure text
@@ -281,6 +286,7 @@ public class ScreenshotService {
      * Generate filename for portfolio screenshot
      */
     private static String generateScreenshotFilename() {
+        LoggerUtil.info(ScreenshotService.class, "Generating screenshot filename");
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"));
         return "portfolio_" + timestamp + "." + SCREENSHOT_FORMAT.toLowerCase();
     }
@@ -289,6 +295,7 @@ public class ScreenshotService {
      * Generate filename for component screenshot
      */
     private static String generateComponentScreenshotFilename() {
+        LoggerUtil.info(ScreenshotService.class, "Generating component screenshot filename");
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"));
         return "component_" + timestamp + "." + SCREENSHOT_FORMAT.toLowerCase();
     }
@@ -297,6 +304,7 @@ public class ScreenshotService {
      * Generate filename for desktop screenshot
      */
     private static String generateDesktopScreenshotFilename() {
+        LoggerUtil.info(ScreenshotService.class, "Generating desktop screenshot filename");
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"));
         return "desktop_" + timestamp + "." + SCREENSHOT_FORMAT.toLowerCase();
     }
@@ -305,6 +313,7 @@ public class ScreenshotService {
      * Create screenshots directory if it doesn't exist
      */
     private static void createScreenshotDirectory() {
+        LoggerUtil.info(ScreenshotService.class, "Creating screenshot directory if needed");
         try {
             File dir = new File(SCREENSHOT_DIR);
             if (!dir.exists()) {
@@ -324,6 +333,7 @@ public class ScreenshotService {
      * Clean up old screenshot files (keep only last 30 days)
      */
     public static void cleanupOldScreenshots() {
+        LoggerUtil.info(ScreenshotService.class, "Cleaning up old screenshots");
         try {
             LoggerUtil.info(ScreenshotService.class, "Cleaning up old screenshots");
             
@@ -363,7 +373,10 @@ public class ScreenshotService {
      * Get the most recent screenshot file
      */
     public static File getMostRecentScreenshot() {
+        LoggerUtil.info(ScreenshotService.class, "Getting most recent screenshot");
         try {
+            LoggerUtil.info(ScreenshotService.class, "Getting most recent screenshot");
+            
             File dir = new File(SCREENSHOT_DIR);
             if (!dir.exists()) {
                 return null;

@@ -70,6 +70,7 @@ public class PortfolioOverviewPanel extends JPanel {
     private static final DecimalFormat amountFormat = new DecimalFormat("#,##0.0000");
     
     public PortfolioOverviewPanel(PortfolioDataManager dataManager) {
+        LoggerUtil.info(PortfolioOverviewPanel.class, "Constructing PortfolioOverviewPanel");
         this.dataManager = dataManager;
         LoggerUtil.info(PortfolioOverviewPanel.class, "Initializing Portfolio Overview Panel");
         
@@ -78,6 +79,7 @@ public class PortfolioOverviewPanel extends JPanel {
     }
     
     private void setupUI() {
+        LoggerUtil.info(PortfolioOverviewPanel.class, "Executing setupUI()");
         setLayout(new BorderLayout());
         setBackground(BACKGROUND_COLOR);
         setBorder(new EmptyBorder(20, 20, 20, 20));
@@ -109,6 +111,7 @@ public class PortfolioOverviewPanel extends JPanel {
     }
     
     private JPanel createHeaderPanel() {
+        LoggerUtil.info(PortfolioOverviewPanel.class, "Executing createHeaderPanel()");
         JPanel headerPanel = new JPanel(new BorderLayout());
         headerPanel.setBackground(BACKGROUND_COLOR);
         headerPanel.setBorder(new EmptyBorder(0, 0, 20, 0));
@@ -128,6 +131,7 @@ public class PortfolioOverviewPanel extends JPanel {
     }
     
     private JPanel createSummaryStatsPanel() {
+        LoggerUtil.info(PortfolioOverviewPanel.class, "Executing createSummaryStatsPanel()");
         JPanel statsPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 15, 0));
         statsPanel.setBackground(BACKGROUND_COLOR);
         
@@ -148,6 +152,7 @@ public class PortfolioOverviewPanel extends JPanel {
     }
     
     private JSplitPane createCenterPanel() {
+        LoggerUtil.info(PortfolioOverviewPanel.class, "Executing createCenterPanel()");
         // Left side: Overview table
         JPanel leftPanel = createOverviewTablePanel();
         
@@ -163,6 +168,7 @@ public class PortfolioOverviewPanel extends JPanel {
     }
     
     private JPanel createOverviewTablePanel() {
+        LoggerUtil.info(PortfolioOverviewPanel.class, "Executing createOverviewTablePanel()");
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBackground(SURFACE_COLOR);
         panel.setBorder(new CompoundBorder(
@@ -189,6 +195,7 @@ public class PortfolioOverviewPanel extends JPanel {
     }
     
     private void createOverviewTable() {
+        LoggerUtil.info(PortfolioOverviewPanel.class, "Executing createOverviewTable()");
         String[] columnNames = {
             "Symbol", "Name", "Holdings", "Value", "% of Portfolio", "P&L", "P&L %"
         };
@@ -224,6 +231,7 @@ public class PortfolioOverviewPanel extends JPanel {
     }
     
     private JPanel createAllocationChartPanel() {
+        LoggerUtil.info(PortfolioOverviewPanel.class, "Executing createAllocationChartPanel()");
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBackground(SURFACE_COLOR);
         panel.setBorder(new CompoundBorder(
@@ -250,6 +258,7 @@ public class PortfolioOverviewPanel extends JPanel {
     }
     
     private JPanel createRebalancingPanel() {
+        LoggerUtil.info(PortfolioOverviewPanel.class, "Executing createRebalancingPanel()");
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBackground(SURFACE_COLOR);
         panel.setBorder(new CompoundBorder(
@@ -277,6 +286,7 @@ public class PortfolioOverviewPanel extends JPanel {
     }
     
     private JPanel createRebalancingInputPanel() {
+        LoggerUtil.info(PortfolioOverviewPanel.class, "Executing createRebalancingInputPanel()");
         JPanel panel = new JPanel();
         panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
         panel.setBackground(SURFACE_COLOR);
@@ -332,6 +342,7 @@ public class PortfolioOverviewPanel extends JPanel {
     }
     
     private JPanel createRecommendationPanel() {
+        LoggerUtil.info(PortfolioOverviewPanel.class, "Executing createRecommendationPanel()");
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBackground(SURFACE_COLOR);
         
@@ -355,6 +366,7 @@ public class PortfolioOverviewPanel extends JPanel {
     }
     
     private JButton createStyledButton(String text, Color bgColor) {
+        LoggerUtil.info(PortfolioOverviewPanel.class, "Executing createStyledButton(text=" + text + ")");
         JButton button = new JButton(text);
         button.setFont(BODY_FONT);
         button.setForeground(Color.WHITE);
@@ -379,6 +391,7 @@ public class PortfolioOverviewPanel extends JPanel {
     }
     
     private JLabel createSeparator() {
+        LoggerUtil.info(PortfolioOverviewPanel.class, "Executing createSeparator()");
         JLabel separator = new JLabel("|");
         separator.setFont(TITLE_FONT);
         separator.setForeground(TEXT_SECONDARY);
@@ -389,6 +402,7 @@ public class PortfolioOverviewPanel extends JPanel {
      * Refresh the data displayed in the overview panel
      */
     public void refreshData() {
+        LoggerUtil.info(PortfolioOverviewPanel.class, "Executing refreshData()");
         LoggerUtil.debug(PortfolioOverviewPanel.class, "Refreshing portfolio overview data");
         
         List<CryptoData> cryptoList = dataManager.getCryptoList();
@@ -441,6 +455,7 @@ public class PortfolioOverviewPanel extends JPanel {
     }
     
     private void updateAllocationChart(List<CryptoData> cryptoList, double totalValue) {
+        LoggerUtil.info(PortfolioOverviewPanel.class, "Executing updateAllocationChart(totalValue=" + totalValue + ")");
         chartPanel.removeAll();
         
         if (totalValue <= 0) {
@@ -469,6 +484,7 @@ public class PortfolioOverviewPanel extends JPanel {
     }
     
     private JPanel createChartLegend(List<CryptoData> cryptoList, double totalValue) {
+        LoggerUtil.info(PortfolioOverviewPanel.class, "Executing createChartLegend(totalValue=" + totalValue + ")");
         JPanel legendPanel = new JPanel();
         legendPanel.setLayout(new BoxLayout(legendPanel, BoxLayout.Y_AXIS));
         legendPanel.setBackground(SURFACE_COLOR);
@@ -491,6 +507,7 @@ public class PortfolioOverviewPanel extends JPanel {
     }
     
     private JPanel createLegendItem(String symbol, double percentage, int colorIndex) {
+        LoggerUtil.info(PortfolioOverviewPanel.class, "Executing createLegendItem(symbol=" + symbol + ", percentage=" + percentage + ", colorIndex=" + colorIndex + ")");
         JPanel item = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 2));
         item.setBackground(SURFACE_COLOR);
         
@@ -512,6 +529,7 @@ public class PortfolioOverviewPanel extends JPanel {
     }
     
     private Color getChartColor(int index) {
+        LoggerUtil.info(PortfolioOverviewPanel.class, "Executing getChartColor(index=" + index + ")");
         Color[] colors = {
             new Color(52, 152, 219),   // Blue
             new Color(155, 89, 182),   // Purple
@@ -526,6 +544,7 @@ public class PortfolioOverviewPanel extends JPanel {
     }
     
     private void handleAnalyzeRequest(ActionEvent e) {
+        LoggerUtil.info(PortfolioOverviewPanel.class, "Executing handleAnalyzeRequest()");
         try {
             double newMoney = Double.parseDouble(newMoneyField.getText().replace(",", ""));
             if (newMoney <= 0) {
@@ -567,6 +586,7 @@ public class PortfolioOverviewPanel extends JPanel {
     }
     
     private void handleAnalysisComplete(PortfolioRebalanceRecommendation recommendation) {
+        LoggerUtil.info(PortfolioOverviewPanel.class, "Executing handleAnalysisComplete()");
         currentRecommendation = recommendation;
         
         // Update UI
@@ -584,6 +604,7 @@ public class PortfolioOverviewPanel extends JPanel {
     }
     
     private void handleAnalysisError(Throwable throwable) {
+        LoggerUtil.info(PortfolioOverviewPanel.class, "Executing handleAnalysisError()");
         analyzeButton.setEnabled(true);
         analysisProgressBar.setVisible(false);
         applyRecommendationButton.setEnabled(false);
@@ -596,6 +617,7 @@ public class PortfolioOverviewPanel extends JPanel {
     }
     
     private void handleApplyRecommendation(ActionEvent e) {
+        LoggerUtil.info(PortfolioOverviewPanel.class, "Executing handleApplyRecommendation()");
         if (currentRecommendation == null || !currentRecommendation.isValid()) {
             JOptionPane.showMessageDialog(this, 
                 "No valid recommendation available to apply.", 
@@ -653,6 +675,7 @@ public class PortfolioOverviewPanel extends JPanel {
         public Component getTableCellRendererComponent(JTable table, Object value, 
                 boolean isSelected, boolean hasFocus, int row, int column) {
             
+            LoggerUtil.info(PortfolioOverviewPanel.class, "Rendering cell at row=" + row + ", column=" + column);
             Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
             
             // Set font
@@ -694,6 +717,7 @@ public class PortfolioOverviewPanel extends JPanel {
         private double totalValue;
         
         public PieChartPanel(List<CryptoData> cryptoData, double totalValue) {
+            LoggerUtil.info(PortfolioOverviewPanel.class, "Constructing PieChartPanel(totalValue=" + totalValue + ")");
             this.cryptoData = cryptoData;
             this.totalValue = totalValue;
             setBackground(SURFACE_COLOR);
@@ -701,6 +725,7 @@ public class PortfolioOverviewPanel extends JPanel {
         
         @Override
         protected void paintComponent(Graphics g) {
+            LoggerUtil.info(PortfolioOverviewPanel.class, "Painting PieChartPanel");
             super.paintComponent(g);
             
             if (cryptoData == null || totalValue <= 0) {

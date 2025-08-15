@@ -48,6 +48,7 @@ public class PortfolioScreenshotBuilder {
      * @return File containing the screenshot, or null if failed
      */
     public static File buildPortfolioScreenshot(List<CryptoData> cryptoList) {
+        LoggerUtil.info(PortfolioScreenshotBuilder.class, "Executing buildPortfolioScreenshot(cryptoList.size=" + (cryptoList != null ? cryptoList.size() : 0) + ")");
         if (cryptoList == null || cryptoList.isEmpty()) {
             LoggerUtil.warning(PortfolioScreenshotBuilder.class, "No crypto data available for screenshot");
             return null;
@@ -97,6 +98,7 @@ public class PortfolioScreenshotBuilder {
      * Create the portfolio image (must be called on EDT)
      */
     private static BufferedImage createPortfolioImage(List<CryptoData> cryptoList) {
+        LoggerUtil.info(PortfolioScreenshotBuilder.class, "Executing createPortfolioImage(cryptoList.size=" + (cryptoList != null ? cryptoList.size() : 0) + ")");
         try {
             LoggerUtil.info(PortfolioScreenshotBuilder.class, "Creating portfolio image on EDT with " + cryptoList.size() + " cryptos");
             
@@ -141,6 +143,7 @@ public class PortfolioScreenshotBuilder {
      * Draw header section directly to Graphics2D
      */
     private static void drawHeader(Graphics2D g2d, List<CryptoData> cryptoList) {
+        LoggerUtil.info(PortfolioScreenshotBuilder.class, "Executing drawHeader()");
         try {
             LoggerUtil.debug(PortfolioScreenshotBuilder.class, "Drawing header section");
             
@@ -170,6 +173,7 @@ public class PortfolioScreenshotBuilder {
      * Draw statistics section directly to Graphics2D
      */
     private static void drawStatistics(Graphics2D g2d, List<CryptoData> cryptoList) {
+        LoggerUtil.info(PortfolioScreenshotBuilder.class, "Executing drawStatistics()");
         try {
             LoggerUtil.debug(PortfolioScreenshotBuilder.class, "Drawing statistics section");
             
@@ -242,6 +246,7 @@ public class PortfolioScreenshotBuilder {
      * Draw a single stat card
      */
     private static void drawStatCard(Graphics2D g2d, int x, int y, int width, String label, String value, Color valueColor) {
+        LoggerUtil.info(PortfolioScreenshotBuilder.class, "Executing drawStatCard(label=" + label + ", value=" + value + ")");
         // Label
         g2d.setColor(TEXT_SECONDARY);
         g2d.setFont(SMALL_FONT);
@@ -261,6 +266,7 @@ public class PortfolioScreenshotBuilder {
      * Draw crypto table directly to Graphics2D
      */
     private static void drawCryptoTable(Graphics2D g2d, List<CryptoData> cryptoList) {
+        LoggerUtil.info(PortfolioScreenshotBuilder.class, "Executing drawCryptoTable(cryptoList.size=" + (cryptoList != null ? cryptoList.size() : 0) + ")");
         try {
             LoggerUtil.debug(PortfolioScreenshotBuilder.class, "Drawing crypto table");
             
@@ -389,6 +395,7 @@ public class PortfolioScreenshotBuilder {
      * Draw footer section directly to Graphics2D
      */
     private static void drawFooter(Graphics2D g2d) {
+        LoggerUtil.info(PortfolioScreenshotBuilder.class, "Executing drawFooter()");
         try {
             LoggerUtil.debug(PortfolioScreenshotBuilder.class, "Drawing footer section");
             
@@ -414,6 +421,7 @@ public class PortfolioScreenshotBuilder {
      * Convert panel to BufferedImage
      */
     private static BufferedImage createScreenshotFromPanel(JPanel panel) {
+        LoggerUtil.info(PortfolioScreenshotBuilder.class, "Executing createScreenshotFromPanel(panel=" + (panel != null ? panel.getClass().getSimpleName() : "null") + ")");
         if (panel == null) {
             LoggerUtil.error(PortfolioScreenshotBuilder.class, "Cannot create screenshot from null panel");
             return null;
@@ -491,6 +499,7 @@ public class PortfolioScreenshotBuilder {
      * Generate filename for screenshot
      */
     private static String generateScreenshotFilename() {
+        LoggerUtil.info(PortfolioScreenshotBuilder.class, "Executing generateScreenshotFilename()");
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"));
         return "portfolio_email_" + timestamp + "." + SCREENSHOT_FORMAT.toLowerCase();
     }
@@ -501,15 +510,15 @@ public class PortfolioScreenshotBuilder {
     private static class ProfitLossCellRenderer extends JLabel implements TableCellRenderer {
         
         public ProfitLossCellRenderer() {
+            LoggerUtil.info(PortfolioScreenshotBuilder.class, "Constructing ProfitLossCellRenderer");
             setOpaque(true);
             setHorizontalAlignment(SwingConstants.CENTER);
             setFont(NORMAL_FONT);
         }
         
         @Override
-        public Component getTableCellRendererComponent(JTable table, Object value, 
-                boolean isSelected, boolean hasFocus, int row, int column) {
-            
+        public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+            LoggerUtil.info(PortfolioScreenshotBuilder.class, "Rendering cell at row=" + row + ", column=" + column);
             setText(value.toString());
             
             // Color based on profit/loss

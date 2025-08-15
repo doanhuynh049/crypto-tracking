@@ -3,6 +3,7 @@ package model;
 import java.util.List;
 import java.util.ArrayList;
 import java.text.DecimalFormat;
+import util.LoggerUtil;
 
 /**
  * Data structure to hold AI-generated portfolio rebalancing recommendations
@@ -26,6 +27,7 @@ public class PortfolioRebalanceRecommendation {
     private static final DecimalFormat amountFormat = new DecimalFormat("#,##0.0000");
     
     public PortfolioRebalanceRecommendation() {
+        LoggerUtil.info(PortfolioRebalanceRecommendation.class, "Creating PortfolioRebalanceRecommendation instance");
         this.allocations = new ArrayList<>();
         this.generatedTime = System.currentTimeMillis();
         this.isValid = false;
@@ -74,6 +76,7 @@ public class PortfolioRebalanceRecommendation {
      */
     public void setValidRecommendation(String analysisText, double newMoneyAmount, String aiRationale, 
                                      String riskAssessment, String marketOutlook) {
+        LoggerUtil.info(PortfolioRebalanceRecommendation.class, "Setting valid recommendation");
         this.isValid = true;
         this.analysisText = analysisText;
         this.newMoneyAmount = newMoneyAmount;
@@ -87,6 +90,7 @@ public class PortfolioRebalanceRecommendation {
      */
     public void addAllocation(String symbol, String action, double recommendedAmount, 
                             double currentValue, double targetPercentage, String reasoning) {
+        LoggerUtil.info(PortfolioRebalanceRecommendation.class, "Adding allocation: " + symbol + " action: " + action);
         allocations.add(new AllocationRecommendation(symbol, action, recommendedAmount, 
                                                    currentValue, targetPercentage, reasoning));
     }
@@ -95,6 +99,7 @@ public class PortfolioRebalanceRecommendation {
      * Get formatted recommendation text for display
      */
     public String getFormattedRecommendation() {
+        LoggerUtil.info(PortfolioRebalanceRecommendation.class, "Getting formatted recommendation");
         if (!isValid) {
             return "❌ Invalid recommendation data";
         }
@@ -180,6 +185,7 @@ public class PortfolioRebalanceRecommendation {
      * Get a summary of the recommendation for quick display
      */
     public String getSummary() {
+        LoggerUtil.info(PortfolioRebalanceRecommendation.class, "Getting recommendation summary");
         if (!isValid) {
             return "Invalid recommendation";
         }

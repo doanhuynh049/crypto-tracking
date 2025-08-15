@@ -47,10 +47,10 @@ public class TechnicalAnalysisService {
      * Analyze technical indicators for a cryptocurrency
      */
     public static CompletableFuture<TechnicalIndicators> analyzeEntry(CryptoData crypto) {
+        LoggerUtil.info(TechnicalAnalysisService.class, "Analyzing entry for: " + crypto.symbol);
         return CompletableFuture.supplyAsync(() -> {
             try {
-                LoggerUtil.info(TechnicalAnalysisService.class, 
-                    "Starting technical analysis for " + crypto.symbol);
+                LoggerUtil.info(TechnicalAnalysisService.class, "Starting technical analysis for " + crypto.symbol);
                 
                 TechnicalIndicators indicators = new TechnicalIndicators();
                 
@@ -94,6 +94,7 @@ public class TechnicalAnalysisService {
      * Calculate RSI (Relative Strength Index)
      */
     private static void calculateRSI(TechnicalIndicators indicators, List<PricePoint> priceHistory) {
+        LoggerUtil.info(TechnicalAnalysisService.class, "Calculating RSI");
         if (priceHistory.size() < RSI_PERIOD + 1) {
             indicators.setRsi(50.0); // Neutral default
             return;
@@ -129,6 +130,7 @@ public class TechnicalAnalysisService {
      * Calculate MACD (Moving Average Convergence Divergence)
      */
     private static void calculateMACD(TechnicalIndicators indicators, List<PricePoint> priceHistory) {
+        LoggerUtil.info(TechnicalAnalysisService.class, "Calculating MACD");
         if (priceHistory.size() < MACD_SLOW) {
             indicators.setMacd(0.0);
             indicators.setMacdSignal(0.0);
@@ -153,6 +155,7 @@ public class TechnicalAnalysisService {
      * Calculate Moving Averages (SMA and EMA)
      */
     private static void calculateMovingAverages(TechnicalIndicators indicators, List<PricePoint> priceHistory) {
+        LoggerUtil.info(TechnicalAnalysisService.class, "Calculating moving averages");
         // SMA 10
         if (priceHistory.size() >= SMA_SHORT) {
             double sma10 = calculateSMA(priceHistory, SMA_SHORT);
@@ -172,6 +175,7 @@ public class TechnicalAnalysisService {
      * Calculate Support and Resistance levels
      */
     private static void calculateSupportResistance(TechnicalIndicators indicators, List<PricePoint> priceHistory) {
+        LoggerUtil.info(TechnicalAnalysisService.class, "Calculating support and resistance");
         if (priceHistory.isEmpty()) return;
         
         // Find recent highs and lows
@@ -198,6 +202,7 @@ public class TechnicalAnalysisService {
      * Calculate Fibonacci Retracement levels
      */
     private static void calculateFibonacciLevels(TechnicalIndicators indicators, List<PricePoint> priceHistory) {
+        LoggerUtil.info(TechnicalAnalysisService.class, "Calculating Fibonacci levels");
         if (priceHistory.isEmpty()) return;
         
         // Find swing high and low
@@ -216,6 +221,7 @@ public class TechnicalAnalysisService {
      * Calculate Volume Analysis with real volume data when available
      */
     private static void calculateVolumeAnalysis(TechnicalIndicators indicators, List<PricePoint> priceHistory, String cryptoId) {
+        LoggerUtil.info(TechnicalAnalysisService.class, "Calculating volume analysis for: " + cryptoId);
         if (priceHistory.size() < VOLUME_PERIOD) return;
         
         // Calculate average volume from historical data
@@ -251,6 +257,7 @@ public class TechnicalAnalysisService {
      * Calculate Trend Analysis
      */
     private static void calculateTrendAnalysis(TechnicalIndicators indicators, List<PricePoint> priceHistory) {
+        LoggerUtil.info(TechnicalAnalysisService.class, "Calculating trend analysis");
         if (priceHistory.size() < 20) {
             indicators.setTrend(TrendDirection.NEUTRAL);
             return;
@@ -287,6 +294,7 @@ public class TechnicalAnalysisService {
      * Generate Entry Signals based on technical analysis
      */
     private static void generateEntrySignals(TechnicalIndicators indicators, CryptoData crypto) {
+        LoggerUtil.info(TechnicalAnalysisService.class, "Generating entry signals for: " + crypto.symbol);
         double currentPrice = crypto.currentPrice;
         
         // RSI Oversold Signal
@@ -379,6 +387,7 @@ public class TechnicalAnalysisService {
      * Calculate Overall Entry Quality based on signals
      */
     private static void calculateOverallQuality(TechnicalIndicators indicators) {
+        LoggerUtil.info(TechnicalAnalysisService.class, "Calculating overall entry quality");
         List<TechnicalIndicators.EntrySignal> signals = indicators.getEntrySignals();
         
         if (signals.isEmpty()) {
@@ -418,6 +427,7 @@ public class TechnicalAnalysisService {
      * Get weight for signal strength
      */
     private static double getSignalWeight(SignalStrength strength) {
+        LoggerUtil.info(TechnicalAnalysisService.class, "Getting signal weight for: " + strength);
         switch (strength) {
             case VERY_STRONG: return 1.0;
             case STRONG: return 0.8;
@@ -432,6 +442,7 @@ public class TechnicalAnalysisService {
      * Helper method to calculate Simple Moving Average
      */
     private static double calculateSMA(List<PricePoint> priceHistory, int period) {
+        LoggerUtil.info(TechnicalAnalysisService.class, "Calculating SMA for period: " + period);
         if (priceHistory.size() < period) return 0.0;
         
         return priceHistory.stream()
@@ -445,6 +456,7 @@ public class TechnicalAnalysisService {
      * Helper method to calculate Exponential Moving Average
      */
     private static double calculateEMA(List<PricePoint> priceHistory, int period) {
+        LoggerUtil.info(TechnicalAnalysisService.class, "Calculating EMA for period: " + period);
         if (priceHistory.size() < period) return 0.0;
         
         double multiplier = 2.0 / (period + 1.0);
@@ -466,6 +478,7 @@ public class TechnicalAnalysisService {
      * @return List of PricePoint containing real OHLC data
      */
     private static List<PricePoint> fetchRealPriceHistory(String cryptoId, double currentPrice) {
+        LoggerUtil.info(TechnicalAnalysisService.class, "Fetching real price history for: " + cryptoId);
         // Check cache first
         List<PricePoint> cachedData = CoinGeckoApiCache.getCachedOHLCData(cryptoId);
         if (cachedData != null) {
@@ -489,6 +502,7 @@ public class TechnicalAnalysisService {
      * Fetch real price history with retry logic and exponential backoff
      */
     private static List<PricePoint> fetchRealPriceHistoryWithRetry(String cryptoId, double currentPrice, int retryCount) {
+        LoggerUtil.info(TechnicalAnalysisService.class, "Fetching real price history with retry for: " + cryptoId + " attempt: " + (retryCount + 1));
         try {
             // Fix common crypto ID mapping issues
             String correctedId = mapCryptoId(cryptoId);
@@ -583,6 +597,7 @@ public class TechnicalAnalysisService {
      * @return List of PricePoint objects
      */
     private static List<PricePoint> parseOHLCResponse(String jsonResponse, double currentPrice) {
+        LoggerUtil.info(TechnicalAnalysisService.class, "Parsing OHLC response");
         List<PricePoint> priceHistory = new ArrayList<>();
         
         try {
@@ -652,6 +667,7 @@ public class TechnicalAnalysisService {
      * @param cryptoId The CoinGecko ID
      */
     private static void enhanceWithMarketData(TechnicalIndicators indicators, String cryptoId) {
+        LoggerUtil.info(TechnicalAnalysisService.class, "Enhancing with market data for: " + cryptoId);
         // Check cache first
         CoinGeckoApiCache.MarketDataResult cachedMarketData = CoinGeckoApiCache.getCachedMarketData(cryptoId);
         if (cachedMarketData != null) {
@@ -760,6 +776,7 @@ public class TechnicalAnalysisService {
      * @return Additional market data for volume analysis
      */
     private static double fetchCurrentVolume(String cryptoId) {
+        LoggerUtil.info(TechnicalAnalysisService.class, "Fetching current volume for: " + cryptoId);
         // Check cache first
         Double cachedVolume = CoinGeckoApiCache.getCachedVolume(cryptoId);
         if (cachedVolume != null) {
@@ -832,6 +849,7 @@ public class TechnicalAnalysisService {
      * @return Corrected CoinGecko ID
      */
     private static String mapCryptoId(String cryptoId) {
+        LoggerUtil.info(TechnicalAnalysisService.class, "Mapping crypto ID: " + cryptoId);
         switch (cryptoId.toLowerCase()) {
             case "btc": return "bitcoin";
             case "eth": return "ethereum";
@@ -857,6 +875,7 @@ public class TechnicalAnalysisService {
      * @return Estimated trading volume
      */
     private static double generateRealisticVolume(double price) {
+        LoggerUtil.info(TechnicalAnalysisService.class, "Generating realistic volume for price: " + price);
         // Estimate volume based on price range (higher priced cryptos typically have lower volume)
         if (price > 10000) {  // Bitcoin-like prices
             return 500000 + (Math.random() * 2000000);
@@ -878,6 +897,7 @@ public class TechnicalAnalysisService {
     private static List<PricePoint> generateFallbackPriceHistory(String cryptoId, double currentPrice) {
         LoggerUtil.info(TechnicalAnalysisService.class, 
             "Generating fallback price history for " + cryptoId + " based on current price: $" + currentPrice);
+        
         
         List<PricePoint> fallbackHistory = new ArrayList<>();
         long currentTime = System.currentTimeMillis();

@@ -110,7 +110,6 @@ public class PortfolioContentPanel extends JPanel implements CleanupablePanel {
             
             // Refresh data to ensure we have current information
             SwingUtilities.invokeLater(() -> {
-                dataManager.refreshPrices();
                 if (uiBuilder != null) {
                     uiBuilder.getStatusLabel().setText("✅ Panel activated");
                 }
