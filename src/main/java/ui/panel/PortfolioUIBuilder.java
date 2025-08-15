@@ -782,6 +782,7 @@ public class PortfolioUIBuilder {
      * Update AI status display based on the crypto list
      */
     public void updateAiStatus(List<CryptoData> cryptoList) {
+        LoggerUtil.info(PortfolioUIBuilder.class, "Updating AI status for portfolio");
         if (cryptoList == null || cryptoList.isEmpty()) {
             return;
         }
@@ -793,7 +794,7 @@ public class PortfolioUIBuilder {
         int loadingCount = 0;
         
         for (CryptoData crypto : cryptoList) {
-            // Ensure AI fields are initialized
+            LoggerUtil.info(PortfolioUIBuilder.class, "Updating AI status for: " + crypto.symbol);
             crypto.initializeAiFields();
             
             String status = crypto.aiStatus;

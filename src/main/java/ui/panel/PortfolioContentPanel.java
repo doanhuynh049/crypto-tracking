@@ -37,7 +37,6 @@ public class PortfolioContentPanel extends JPanel implements CleanupablePanel {
             // Setup the UI
             setupUI();
             
-            // Load initial data and prices
             LoggerUtil.info(PortfolioContentPanel.class, "Portfolio Content Panel initialized successfully");
         } catch (Exception e) {
             LoggerUtil.error(PortfolioContentPanel.class, "Failed to initialize Portfolio Content Panel", e);

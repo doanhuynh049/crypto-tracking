@@ -69,9 +69,7 @@ public class CryptoMainApp extends JFrame {
             // Initialize system tray if supported
             initializeSystemTray();
             
-            // Initialize daily report scheduler (will start if email is configured)
             initializeDailyReports();
-            
             LoggerUtil.info(CryptoMainApp.class, "Application initialization completed successfully");
         } catch (Exception e) {
             LoggerUtil.error(CryptoMainApp.class, "Failed to initialize application", e);
@@ -83,10 +81,16 @@ public class CryptoMainApp extends JFrame {
      */
     private void initializeDailyReports() {
         try {
-            LoggerUtil.info(CryptoMainApp.class, "Initializing daily report scheduler");
-            
-            // The scheduler will check if email is configured and start automatically
-            // We'll pass the main frame and data manager when we create portfolio content
+            SwingUtilities.invokeLater(() -> {
+                LoggerUtil.info(CryptoMainApp.class, "Initializing daily report scheduler");
+                try {
+                    PortfolioDataManager dataManager = portfolioContent.getDataManager();
+                    DailyReportScheduler.startDailyReports(dataManager, this);
+                    LoggerUtil.info(CryptoMainApp.class, "Daily report scheduler started");
+                } catch (Exception e) {
+                    LoggerUtil.error(CryptoMainApp.class, "Failed to start daily report scheduler", e);
+                }
+            });
             LoggerUtil.info(CryptoMainApp.class, "Daily report scheduler initialization completed");
         } catch (Exception e) {
             LoggerUtil.error(CryptoMainApp.class, "Failed to initialize daily report scheduler", e);
@@ -352,11 +356,11 @@ public class CryptoMainApp extends JFrame {
             
             // Create new content based on selected item
             switch (item.title) {
-                case "My Portfolio":
-                    currentContentPanel = createPortfolioContent();
-                    break;
                 case "Portfolio Overview":
                     currentContentPanel = createPortfolioOverviewContent();
+                    break;
+                case "My Portfolio":
+                    currentContentPanel = createPortfolioContent();
                     break;
                 case "Market Overview":
                     currentContentPanel = createMarketOverviewContent();
@@ -421,20 +425,7 @@ public class CryptoMainApp extends JFrame {
             // Use the dedicated PortfolioContentPanel
             PortfolioContentPanel portfolioContent = new PortfolioContentPanel();
             contentContainer.add(portfolioContent, BorderLayout.CENTER);
-            
-            // Start daily report scheduler with portfolio data manager and main frame
-            SwingUtilities.invokeLater(() -> {
-                try {
-                    PortfolioDataManager dataManager = portfolioContent.getDataManager();
-                    DailyReportScheduler.startDailyReports(dataManager, this);
-                    LoggerUtil.info(CryptoMainApp.class, "Daily report scheduler started");
-                } catch (Exception e) {
-                    LoggerUtil.error(CryptoMainApp.class, "Failed to start daily report scheduler", e);
-                }
-            });
-            
             portfolioPanel.add(contentContainer, BorderLayout.CENTER);
-            
             LoggerUtil.info(CryptoMainApp.class, "Portfolio content panel created successfully");
             return portfolioPanel;
         } catch (Exception e) {

@@ -234,9 +234,6 @@ public class PortfolioDataManager {
                 for (CryptoData crypto : cryptoList) {
                     uiBuilder.addCryptoToTable(crypto);
                 }
-                updatePortfolioValue(); // Update portfolio value display
-                // Initialize AI status with all loading
-                updateAiStatusProgress();
                 // Auto-fit column widths after loading all data with a delay to ensure proper calculation
                 SwingUtilities.invokeLater(() -> {
                     uiBuilder.autoFitColumnWidths();
@@ -707,6 +704,7 @@ public class PortfolioDataManager {
      * Update AI status progress in real-time
      */
     private void updateAiStatusProgress() {
+        LoggerUtil.info(PortfolioUIBuilder.class, "Updating AI status progress");
         if (uiBuilder == null) return;
         
         int totalCount = cryptoList.size();
