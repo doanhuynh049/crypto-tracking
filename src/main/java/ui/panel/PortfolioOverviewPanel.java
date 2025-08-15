@@ -403,7 +403,6 @@ public class PortfolioOverviewPanel extends JPanel {
      */
     public void refreshData() {
         LoggerUtil.info(PortfolioOverviewPanel.class, "Executing refreshData()");
-        LoggerUtil.debug(PortfolioOverviewPanel.class, "Refreshing portfolio overview data");
         
         List<CryptoData> cryptoList = dataManager.getCryptoList();
         if (cryptoList == null || cryptoList.isEmpty()) {
@@ -425,14 +424,15 @@ public class PortfolioOverviewPanel extends JPanel {
         
         // Update table data
         for (CryptoData crypto : cryptoList) {
-            if (crypto.getTotalValue() > 0) { // Only show holdings with value
-                double portfolioPercentage = totalValue > 0 ? (crypto.getTotalValue() / totalValue) : 0.0;
+            double valueOfCrypto = crypto.getTotalValue();
+            if (valueOfCrypto > 0) {
+                double portfolioPercentage = totalValue > 0 ? (valueOfCrypto / totalValue) : 0.0;
                 
                 Object[] rowData = {
                     crypto.symbol.toUpperCase(),
                     crypto.name,
                     amountFormat.format(crypto.holdings),
-                    priceFormat.format(crypto.getTotalValue()),
+                    priceFormat.format(valueOfCrypto),
                     percentFormat.format(portfolioPercentage),
                     priceFormat.format(crypto.getProfitLoss()),
                     percentFormat.format(crypto.getProfitLossPercentage())

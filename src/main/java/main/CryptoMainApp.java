@@ -466,13 +466,7 @@ public class CryptoMainApp extends JFrame {
             JPanel contentContainer = new JPanel(new BorderLayout());
             contentContainer.setBackground(BACKGROUND_COLOR);
             contentContainer.setBorder(new EmptyBorder(0, 20, 20, 20));
-            
-            // Get portfolio data manager from the existing portfolio content
-            // We need to access the data manager from portfolio content
-            PortfolioContentPanel portfolioContent = new PortfolioContentPanel();
-            PortfolioDataManager dataManager = portfolioContent.getDataManager();
-            
-            // Create the portfolio overview panel
+            PortfolioDataManager dataManager = new PortfolioDataManager();
             PortfolioOverviewPanel overviewContent = new PortfolioOverviewPanel(dataManager);
             contentContainer.add(overviewContent, BorderLayout.CENTER);
             

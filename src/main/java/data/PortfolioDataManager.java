@@ -1074,7 +1074,6 @@ public class PortfolioDataManager {
                 LoggerUtil.info(PortfolioDataManager.class, 
                     String.format("Successfully loaded %d cryptocurrencies from portfolio data file", cryptoList.size()));
                     
-                // Force save to update the binary file with new class names
                 LoggerUtil.info(PortfolioDataManager.class, "Migrating data file to new package structure");
                 forceSavePortfolioData();
             }
