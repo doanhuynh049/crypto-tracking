@@ -1,6 +1,7 @@
 package service;
 
 import model.CryptoData;
+import service.AiAdviceService;
 import util.LoggerUtil;
 
 import javax.mail.*;
@@ -396,100 +397,51 @@ public class EmailService {
         
         // Header
         html.append("<div class='header'>");
-        html.append("<h1>📊 Portfolio Overview Report</h1>");
+        html.append("<h1>🎯 AI Portfolio Overview Report</h1>");
         html.append("<p class='date'>").append(LocalDateTime.now().format(
             DateTimeFormatter.ofPattern("EEEE, MMMM dd, yyyy 'at' HH:mm"))).append("</p>");
         html.append("</div>");
+
+        // Enhanced AI Portfolio Overview Analysis Section
+        html.append("<div class='ai-portfolio-main'>");
+        html.append("<h2>🤖 AI Portfolio Analysis & Recommendations</h2>");
         
-        // Portfolio Overview Summary
-        html.append("<div class='summary'>");
-        html.append("<h2>🎯 Portfolio Allocation Overview</h2>");
-        html.append("<div class='summary-grid'>");
+        // Portfolio Summary Stats Box
+        html.append("<div class='portfolio-stats-box'>");
+        html.append("<h3>📊 Portfolio Quick Stats</h3>");
+        html.append("<div class='stats-grid'>");
         
-        html.append("<div class='summary-item'>");
-        html.append("<div class='summary-label'>Total Portfolio Value</div>");
-        html.append("<div class='summary-value'>$").append(String.format("%.2f", summary.totalValue)).append("</div>");
+        html.append("<div class='stat-item'>");
+        html.append("<div class='stat-label'>Total Value</div>");
+        html.append("<div class='stat-value primary'>$").append(String.format("%.2f", summary.totalValue)).append("</div>");
         html.append("</div>");
         
-        html.append("<div class='summary-item'>");
-        html.append("<div class='summary-label'>Total Assets</div>");
-        html.append("<div class='summary-value'>").append(cryptoList.size()).append(" Cryptocurrencies</div>");
+        html.append("<div class='stat-item'>");
+        html.append("<div class='stat-label'>Assets</div>");
+        html.append("<div class='stat-value'>").append(cryptoList.size()).append(" Holdings</div>");
         html.append("</div>");
         
-        html.append("<div class='summary-item'>");
-        html.append("<div class='summary-label'>Overall Performance</div>");
+        html.append("<div class='stat-item'>");
+        html.append("<div class='stat-label'>Performance</div>");
         String plClass = summary.totalProfitLoss >= 0 ? "positive" : "negative";
-        html.append("<div class='summary-value ").append(plClass).append("'>");
+        html.append("<div class='stat-value ").append(plClass).append("'>");
         html.append(summary.totalProfitLoss >= 0 ? "+" : "").append(String.format("%.2f%%", summary.totalProfitLoss));
         html.append("</div>");
         html.append("</div>");
         
-        html.append("<div class='summary-item'>");
-        html.append("<div class='summary-label'>Top Performer</div>");
-        html.append("<div class='summary-value'>").append(summary.bestPerformer).append("</div>");
+        html.append("<div class='stat-item'>");
+        html.append("<div class='stat-label'>Top Performer</div>");
+        html.append("<div class='stat-value'>").append(summary.bestPerformer).append("</div>");
         html.append("</div>");
         
         html.append("</div>");
         html.append("</div>");
         
-        // Portfolio Allocation Details
-        html.append("<div class='crypto-list'>");
-        html.append("<h2>🥧 Asset Allocation & Holdings</h2>");
-        
-        // Sort by total value for better visualization
-        List<CryptoData> sortedCryptos = new java.util.ArrayList<>(cryptoList);
-        sortedCryptos.sort((a, b) -> Double.compare(b.getTotalValue(), a.getTotalValue()));
-        
-        for (CryptoData crypto : sortedCryptos) {
-            double totalValue = crypto.getTotalValue();
-            if (totalValue <= 0) continue; // Skip zero-value holdings
-            
-            double portfolioPercentage = (totalValue / summary.totalValue) * 100;
-            double profitLoss = crypto.getProfitLossPercentage() * 100;
-            String cryptoPlClass = profitLoss >= 0 ? "positive" : "negative";
-            
-            html.append("<div class='crypto-item'>");
-            html.append("<div class='crypto-header'>");
-            html.append("<h3>").append(crypto.name).append(" (").append(crypto.symbol).append(")</h3>");
-            html.append("<div class='crypto-price'>").append(String.format("%.1f%%", portfolioPercentage)).append(" of Portfolio</div>");
-            html.append("</div>");
-            
-            html.append("<div class='crypto-details'>");
-            html.append("<div class='detail-item'>");
-            html.append("<span class='label'>Current Price:</span>");
-            html.append("<span class='value'>$").append(String.format("%.4f", crypto.currentPrice)).append("</span>");
-            html.append("</div>");
-            
-            html.append("<div class='detail-item'>");
-            html.append("<span class='label'>Holdings:</span>");
-            html.append("<span class='value'>").append(String.format("%.6f", crypto.holdings)).append(" ").append(crypto.symbol).append("</span>");
-            html.append("</div>");
-            
-            html.append("<div class='detail-item'>");
-            html.append("<span class='label'>Total Value:</span>");
-            html.append("<span class='value'>$").append(String.format("%.2f", totalValue)).append("</span>");
-            html.append("</div>");
-            
-            html.append("<div class='detail-item'>");
-            html.append("<span class='label'>Avg Buy Price:</span>");
-            html.append("<span class='value'>$").append(String.format("%.4f", crypto.avgBuyPrice)).append("</span>");
-            html.append("</div>");
-            
-            html.append("<div class='detail-item'>");
-            html.append("<span class='label'>Performance:</span>");
-            html.append("<span class='value ").append(cryptoPlClass).append("'>");
-            html.append(profitLoss >= 0 ? "+" : "").append(String.format("%.2f%%", profitLoss));
-            html.append("</span>");
-            html.append("</div>");
-            
-            html.append("<div class='detail-item'>");
-            html.append("<span class='label'>3M Target:</span>");
-            html.append("<span class='value'>$").append(String.format("%.4f", crypto.targetPrice3Month)).append("</span>");
-            html.append("</div>");
-            
-            html.append("</div>");
-            html.append("</div>");
-        }
+        // AI Analysis Content
+        String portfolioAnalysis = getPortfolioOverviewAnalysisForEmail(cryptoList);
+        html.append("<div class='ai-analysis-main'>");
+        html.append(formatPortfolioAnalysisForEmail(portfolioAnalysis));
+        html.append("</div>");
         
         html.append("</div>");
         
@@ -497,6 +449,7 @@ public class EmailService {
         html.append("<div class='footer'>");
         html.append("<p>📊 Portfolio Overview with visual allocation chart is attached as an image</p>");
         html.append("<p>🎯 This overview provides insights into your portfolio diversification and asset allocation</p>");
+        html.append("<p>🤖 AI analysis provides strategic recommendations for portfolio optimization</p>");
         html.append("<p><small>Generated on ").append(LocalDateTime.now().format(
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))).append("</small></p>");
         html.append("</div>");
@@ -619,6 +572,9 @@ public class EmailService {
             .summary-value.negative {
                 color: #DC3545;
             }
+            .summary-value.primary {
+                color: #1976D2;
+            }
             .crypto-list {
                 background: white;
                 padding: 25px;
@@ -696,6 +652,70 @@ public class EmailService {
                 font-size: 12px;
                 line-height: 1.5;
                 color: #495057;
+            }
+            .ai-portfolio-main {
+                background: white;
+                padding: 30px;
+                border-radius: 12px;
+                margin-bottom: 20px;
+                box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+                border-left: 5px solid #1976D2;
+            }
+            .ai-portfolio-main h2 {
+                margin-top: 0;
+                color: #1976D2;
+                font-size: 24px;
+                text-align: center;
+                border-bottom: 3px solid #E3F2FD;
+                padding-bottom: 15px;
+                margin-bottom: 25px;
+            }
+            .portfolio-stats-box {
+                background: linear-gradient(135deg, #E3F2FD, #F3E5F5);
+                padding: 20px;
+                border-radius: 10px;
+                margin-bottom: 25px;
+                border: 1px solid #BBDEFB;
+            }
+            .portfolio-stats-box h3 {
+                margin: 0 0 15px 0;
+                color: #1976D2;
+                font-size: 18px;
+                text-align: center;
+            }
+            .stats-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+                gap: 15px;
+            }
+            .stat-item {
+                background: white;
+                padding: 15px;
+                border-radius: 8px;
+                text-align: center;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                border: 1px solid #E1F5FE;
+            }
+            .stat-label {
+                font-size: 12px;
+                color: #666;
+                margin-bottom: 8px;
+                text-transform: uppercase;
+                font-weight: bold;
+                letter-spacing: 0.5px;
+            }
+            .stat-value {
+                font-size: 18px;
+                font-weight: bold;
+                color: #333;
+            }
+            .ai-analysis-main {
+                background: #FAFAFA;
+                padding: 25px;
+                border-radius: 12px;
+                border: 2px solid #E3F2FD;
+                font-size: 15px;
+                line-height: 1.7;
             }
             .footer {
                 text-align: center;
@@ -954,6 +974,216 @@ public class EmailService {
             
         } catch (Exception e) {
             LoggerUtil.warning(EmailService.class, "Error formatting email content line: " + e.getMessage());
+        }
+        
+        return content;
+    }
+    
+    /**
+     * Get AI portfolio overview analysis for email report
+     * @param cryptoList The list of cryptocurrency holdings
+     * @return AI-generated portfolio overview analysis
+     */
+    private static String getPortfolioOverviewAnalysisForEmail(List<CryptoData> cryptoList) {
+        LoggerUtil.info(EmailService.class, "Executing getPortfolioOverviewAnalysisForEmail(cryptoList.size=" + (cryptoList != null ? cryptoList.size() : 0) + ")");
+        try {
+            LoggerUtil.debug(EmailService.class, "Getting AI portfolio overview analysis for email report");
+            
+            // Use the new AiAdviceService method for portfolio overview analysis
+            String analysis = AiAdviceService.getPortfolioOverviewAnalysis(cryptoList);
+            
+            if (analysis != null && !analysis.trim().isEmpty()) {
+                LoggerUtil.debug(EmailService.class, "Portfolio overview analysis retrieved successfully");
+                return analysis;
+            } else {
+                LoggerUtil.warning(EmailService.class, "No portfolio overview analysis available");
+                return "Portfolio overview analysis temporarily unavailable. Please check the application for the latest insights.";
+            }
+            
+        } catch (Exception e) {
+            LoggerUtil.error(EmailService.class, "Error getting portfolio overview analysis: " + e.getMessage(), e);
+            return "Error retrieving portfolio overview analysis. Please check the application for manual analysis.";
+        }
+    }
+    
+    /**
+     * Format portfolio overview analysis for email display
+     * @param analysis The portfolio analysis text
+     * @return Formatted HTML for email display
+     */
+    private static String formatPortfolioAnalysisForEmail(String analysis) {
+        LoggerUtil.info(EmailService.class, "Executing formatPortfolioAnalysisForEmail()");
+        if (analysis == null || analysis.trim().isEmpty()) {
+            return "<p style='color: #666; font-style: italic;'>No portfolio analysis available</p>";
+        }
+        
+        try {
+            // Check if it's an error message
+            if (analysis.startsWith("Portfolio overview analysis unavailable") || analysis.startsWith("Error")) {
+                return "<p style='color: #FF6B35; font-style: italic; background-color: #FFF3E0; padding: 10px; border-radius: 4px;'>" +
+                       "⚠️ " + analysis + "</p>";
+            }
+            
+            StringBuilder html = new StringBuilder();
+            html.append("<div style='background-color: #F8F9FA; padding: 20px; border-radius: 10px; border-left: 4px solid #1976D2; font-size: 14px; line-height: 1.6; margin-bottom: 20px;'>");
+            
+            // Split the analysis by sections with emoji headers
+            String[] sections = analysis.split("(?=🎯|⚖️|📊|🔮|═════|📋)");
+            
+            for (String section : sections) {
+                section = section.trim();
+                if (section.isEmpty()) continue;
+                
+                // Format different types of sections
+                if (section.startsWith("🎯") || section.startsWith("⚖️") || section.startsWith("📊") || section.startsWith("🔮")) {
+                    // Main analysis sections
+                    html.append(formatAnalysisSection(section));
+                } else if (section.startsWith("📋")) {
+                    // Quick stats section
+                    html.append(formatQuickStatsSection(section));
+                } else if (section.startsWith("═════")) {
+                    // Header section
+                    html.append(formatHeaderSection(section));
+                } else if (!section.startsWith("⚠️") && !section.startsWith("⏰")) {
+                    // Regular content
+                    html.append("<div style='margin: 10px 0;'>");
+                    html.append(formatPortfolioContentLine(section));
+                    html.append("</div>");
+                }
+            }
+            
+            html.append("</div>");
+            return html.toString();
+            
+        } catch (Exception e) {
+            LoggerUtil.error(EmailService.class, "Error formatting portfolio analysis for email: " + e.getMessage());
+            return "<p style='color: #666; font-style: italic;'>Error formatting portfolio analysis</p>";
+        }
+    }
+    
+    /**
+     * Format analysis section with proper styling
+     */
+    private static String formatAnalysisSection(String section) {
+        LoggerUtil.debug(EmailService.class, "Formatting analysis section");
+        StringBuilder html = new StringBuilder();
+        
+        String[] lines = section.split("\n");
+        if (lines.length > 0) {
+            String header = lines[0].trim();
+            
+            html.append("<div style='margin: 20px 0 15px 0;'>");
+            html.append("<h3 style='color: #1976D2; margin: 0 0 15px 0; font-size: 16px; font-weight: bold; border-bottom: 2px solid #E3F2FD; padding-bottom: 8px;'>");
+            html.append(header);
+            html.append("</h3>");
+            
+            // Process content lines
+            for (int i = 1; i < lines.length; i++) {
+                String line = lines[i].trim();
+                if (line.isEmpty()) continue;
+                
+                if (line.startsWith("•") || line.startsWith("-")) {
+                    // Bullet points
+                    html.append("<div style='margin: 8px 0; padding-left: 20px;'>");
+                    html.append("• ").append(formatPortfolioContentLine(line.substring(1).trim()));
+                    html.append("</div>");
+                } else if (line.contains(":") && !line.startsWith("⚠️")) {
+                    // Key-value pairs
+                    String[] parts = line.split(":", 2);
+                    if (parts.length == 2) {
+                        html.append("<div style='margin: 8px 0;'>");
+                        html.append("<strong style='color: #333;'>").append(parts[0].trim()).append(":</strong> ");
+                        html.append(formatPortfolioContentLine(parts[1].trim()));
+                        html.append("</div>");
+                    }
+                } else {
+                    // Regular text
+                    html.append("<div style='margin: 8px 0;'>");
+                    html.append(formatPortfolioContentLine(line));
+                    html.append("</div>");
+                }
+            }
+            html.append("</div>");
+        }
+        
+        return html.toString();
+    }
+    
+    /**
+     * Format quick stats section
+     */
+    private static String formatQuickStatsSection(String section) {
+        LoggerUtil.debug(EmailService.class, "Formatting quick stats section");
+        StringBuilder html = new StringBuilder();
+        
+        html.append("<div style='background-color: #E3F2FD; padding: 15px; border-radius: 8px; margin: 15px 0;'>");
+        html.append("<h4 style='color: #1976D2; margin: 0 0 10px 0; font-size: 14px;'>Portfolio Quick Stats</h4>");
+        
+        String[] lines = section.split("\n");
+        for (String line : lines) {
+            line = line.trim();
+            if (line.isEmpty() || line.startsWith("📋") || line.startsWith("─")) continue;
+            
+            if (line.startsWith("•")) {
+                html.append("<div style='margin: 5px 0; font-size: 13px;'>");
+                html.append(formatPortfolioContentLine(line));
+                html.append("</div>");
+            }
+        }
+        
+        html.append("</div>");
+        return html.toString();
+    }
+    
+    /**
+     * Format header section
+     */
+    private static String formatHeaderSection(String section) {
+        LoggerUtil.debug(EmailService.class, "Formatting header section");
+        String[] lines = section.split("\n");
+        if (lines.length > 1) {
+            String title = lines[1].trim();
+            return "<div style='text-align: center; margin: 0 0 20px 0;'>" +
+                   "<h2 style='color: #1976D2; margin: 0; font-size: 18px; font-weight: bold;'>" + title + "</h2>" +
+                   "</div>";
+        }
+        return "";
+    }
+    
+    /**
+     * Format content lines for portfolio analysis email
+     */
+    private static String formatPortfolioContentLine(String content) {
+        LoggerUtil.debug(EmailService.class, "Formatting portfolio content line");
+        if (content == null) return "";
+        
+        try {
+            // Format recommendations with colors
+            content = content.replaceAll("\\b(INCREASE|BUY|ADD|ACCUMULATE)\\b", 
+                                       "<span style='color: #28A745; font-weight: bold;'>$1</span>");
+            content = content.replaceAll("\\b(DECREASE|SELL|REDUCE|TRIM)\\b", 
+                                       "<span style='color: #DC3545; font-weight: bold;'>$1</span>");
+            content = content.replaceAll("\\b(MAINTAIN|HOLD|STABLE|BALANCED)\\b", 
+                                       "<span style='color: #17A2B8; font-weight: bold;'>$1</span>");
+            
+            // Format percentages and numbers
+            content = content.replaceAll("([+-]?\\d+\\.?\\d*)%", 
+                                       "<strong style='color: #17A2B8;'>$1%</strong>");
+            
+            // Format currency amounts
+            content = content.replaceAll("\\$([\\d,]+\\.?\\d*)", 
+                                       "<strong style='color: #28A745;'>\\$$1</strong>");
+            
+            // Format concentration warnings
+            content = content.replaceAll("\\b(HIGH CONCENTRATION|CONCENTRATION RISK)\\b", 
+                                       "<span style='color: #DC3545; font-weight: bold; background-color: #FFEBEE; padding: 2px 4px; border-radius: 3px;'>$1</span>");
+            
+            // Format positive indicators
+            content = content.replaceAll("\\b(GOOD DIVERSIFICATION|WELL BALANCED|EXCELLENT)\\b", 
+                                       "<span style='color: #28A745; font-weight: bold;'>$1</span>");
+            
+        } catch (Exception e) {
+            LoggerUtil.warning(EmailService.class, "Error formatting portfolio content line: " + e.getMessage());
         }
         
         return content;

@@ -140,18 +140,18 @@ public class SettingsPanel extends JPanel implements CleanupablePanel {
         
         JButton testEmailButton = createModernButton("📧 Send Test Email", PRIMARY_COLOR);
         JButton testReportButton = createModernButton("📊 Send Test Report", new Color(255, 152, 0));
-        JButton testSystemButton = createModernButton("🔧 Test System", new Color(156, 39, 176));
+        JButton portfolioOverviewButton = createModernButton("🎯 Send Portfolio Overview", new Color(156, 39, 176));
         JButton refreshButton = createModernButton("🔄 Refresh Status", new Color(96, 125, 139));
         
         // Button actions
-        setupEmailButtonActions(testEmailButton, testReportButton, testSystemButton, refreshButton);
+        setupEmailButtonActions(testEmailButton, testReportButton, portfolioOverviewButton, refreshButton);
         
         // Add buttons to panel
         buttonPanel.add(testEmailButton);
         buttonPanel.add(Box.createHorizontalStrut(10));
         buttonPanel.add(testReportButton);
         buttonPanel.add(Box.createHorizontalStrut(10));
-        buttonPanel.add(testSystemButton);
+        buttonPanel.add(portfolioOverviewButton);
         buttonPanel.add(Box.createHorizontalStrut(10));
         buttonPanel.add(refreshButton);
         
@@ -162,7 +162,7 @@ public class SettingsPanel extends JPanel implements CleanupablePanel {
      * Setup action listeners for email buttons
      */
     private void setupEmailButtonActions(JButton testEmailButton, JButton testReportButton, 
-                                       JButton testSystemButton, JButton refreshButton) {
+                                       JButton portfolioOverviewButton, JButton refreshButton) {
         LoggerUtil.debug(SettingsPanel.class, "Setting up email button actions");
         
         testEmailButton.addActionListener(e -> {
@@ -190,13 +190,15 @@ public class SettingsPanel extends JPanel implements CleanupablePanel {
             showMessage("Manual daily report sent! Check your email.", "Report Sent", JOptionPane.INFORMATION_MESSAGE);
         });
         
-        testSystemButton.addActionListener(e -> {
-            boolean testResult = DailyReportScheduler.testDailyReportSystem();
-            if (testResult) {
-                showMessage("Daily report system test completed successfully!", "System Test Passed", JOptionPane.INFORMATION_MESSAGE);
-            } else {
-                showMessage("Daily report system test failed. Check the logs for details.", "System Test Failed", JOptionPane.ERROR_MESSAGE);
+        portfolioOverviewButton.addActionListener(e -> {
+            if (!EmailService.isAvailable()) {
+                showMessage("Email service is currently unavailable.", "Service Unavailable", JOptionPane.WARNING_MESSAGE);
+                return;
             }
+            
+            // Send manual portfolio overview email
+            DailyReportScheduler.sendManualPortfolioOverviewEmail();
+            showMessage("Portfolio Overview email sent! Check your email.", "Portfolio Overview Sent", JOptionPane.INFORMATION_MESSAGE);
         });
         
         refreshButton.addActionListener(e -> updateCombinedStatus());

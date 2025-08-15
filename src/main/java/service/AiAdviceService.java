@@ -10,6 +10,7 @@ import java.net.URL;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.Executors;
+import java.util.List;
 import org.json.JSONObject;
 import org.json.JSONArray;
 import okhttp3.*;
@@ -834,5 +835,160 @@ public class AiAdviceService {
         
         return cleaned;
     }
+
+    /**
+     * Generate AI portfolio overview analysis for email reports
+     * @param cryptoList The list of crypto holdings in the portfolio
+     * @return AI-generated portfolio overview analysis with balance recommendations
+     */
+    public static String getPortfolioOverviewAnalysis(List<CryptoData> cryptoList) {
+        LoggerUtil.info(AiAdviceService.class, "Getting AI portfolio overview analysis for email");
+        
+        if (cryptoList == null || cryptoList.isEmpty()) {
+            LoggerUtil.warning(AiAdviceService.class, "No crypto data available for portfolio overview analysis");
+            return "No portfolio data available for analysis.";
+        }
+        
+        try {
+            // Create comprehensive portfolio analysis prompt
+            String prompt = createPortfolioOverviewPrompt(cryptoList);
+            
+            // Get AI analysis
+            String aiAnalysis = getAiResponse(prompt);
+            
+            if (aiAnalysis != null && !aiAnalysis.trim().isEmpty()) {
+                LoggerUtil.info(AiAdviceService.class, "Successfully generated portfolio overview analysis");
+                return formatPortfolioOverviewAnalysis(aiAnalysis, cryptoList);
+            } else {
+                LoggerUtil.warning(AiAdviceService.class, "AI returned empty response for portfolio overview");
+                return "AI portfolio overview analysis unavailable at the moment. Please try again.";
+            }
+            
+        } catch (Exception e) {
+            LoggerUtil.error(AiAdviceService.class, "Error getting portfolio overview analysis: " + e.getMessage(), e);
+            return "Error getting portfolio overview analysis: " + e.getMessage();
+        }
+    }
     
+    /**
+     * Create comprehensive prompt for portfolio overview analysis
+     */
+    private static String createPortfolioOverviewPrompt(List<CryptoData> cryptoList) {
+        LoggerUtil.info(AiAdviceService.class, "Creating portfolio overview analysis prompt");
+        
+        StringBuilder prompt = new StringBuilder();
+        
+        // Calculate portfolio metrics
+        double totalValue = 0;
+        double totalProfitLoss = 0;
+        for (CryptoData crypto : cryptoList) {
+            totalValue += crypto.getTotalValue();
+            totalProfitLoss += crypto.getProfitLoss();
+        }
+        
+        prompt.append("As a professional cryptocurrency portfolio advisor, analyze this complete portfolio and provide comprehensive insights about holdings allocation, performance, and rebalancing recommendations.\n\n");
+        
+        // Portfolio summary
+        prompt.append("PORTFOLIO OVERVIEW:\n");
+        prompt.append(String.format("• Total Portfolio Value: $%.2f\n", totalValue));
+        prompt.append(String.format("• Total P&L: $%.2f (%.2f%%)\n", 
+            totalProfitLoss, totalValue > 0 ? (totalProfitLoss / totalValue) * 100 : 0));
+        prompt.append(String.format("• Number of Holdings: %d\n\n", cryptoList.size()));
+        
+        // Individual holdings analysis
+        prompt.append("DETAILED HOLDINGS BREAKDOWN:\n");
+        
+        // Sort by total value for better analysis
+        List<CryptoData> sortedCryptos = new java.util.ArrayList<>(cryptoList);
+        sortedCryptos.sort((a, b) -> Double.compare(b.getTotalValue(), a.getTotalValue()));
+        
+        for (CryptoData crypto : sortedCryptos) {
+            double allocation = totalValue > 0 ? (crypto.getTotalValue() / totalValue) * 100 : 0;
+            double profitLossPercentage = crypto.getProfitLossPercentage() * 100;
+            
+            prompt.append(String.format("• %s (%s):\n", crypto.symbol.toUpperCase(), crypto.name));
+            prompt.append(String.format("  - Current Value: $%.2f (%.2f%% of portfolio)\n", 
+                crypto.getTotalValue(), allocation));
+            prompt.append(String.format("  - Holdings: %.6f %s at avg cost $%.4f\n", 
+                crypto.holdings, crypto.symbol, crypto.avgBuyPrice));
+            prompt.append(String.format("  - Current Price: $%.4f (P&L: %.2f%%)\n", 
+                crypto.currentPrice, profitLossPercentage));
+            prompt.append(String.format("  - 3M Target: $%.4f, Long Target: $%.4f\n\n", 
+                crypto.targetPrice3Month, crypto.targetPriceLongTerm));
+        }
+        
+        // Request specific analysis sections
+        prompt.append("REQUIRED ANALYSIS - Please provide detailed insights in these sections:\n\n");
+        
+        prompt.append("🎯 PORTFOLIO ALLOCATION ASSESSMENT:\n");
+        prompt.append("- Evaluate current allocation percentages\n");
+        prompt.append("- Identify over/under-allocated positions\n");
+        prompt.append("- Rate overall diversification (1-10 scale)\n\n");
+        
+        prompt.append("⚖️ REBALANCING RECOMMENDATIONS:\n");
+        prompt.append("- Specific suggestions to improve balance\n");
+        prompt.append("- Which positions to increase/decrease\n");
+        prompt.append("- Target allocation percentages for each holding\n\n");
+        
+        prompt.append("📊 PERFORMANCE ANALYSIS:\n");
+        prompt.append("- Best and worst performing assets\n");
+        prompt.append("- Overall portfolio performance assessment\n");
+        prompt.append("- Risk vs return evaluation\n\n");
+        
+        prompt.append("🔮 STRATEGIC OUTLOOK:\n");
+        prompt.append("- Market positioning analysis\n");
+        prompt.append("- Future growth potential of current holdings\n");
+        prompt.append("- Recommended actions for next 3-6 months\n\n");
+        
+        prompt.append("Format your response with clear sections using the emoji headers above. ");
+        prompt.append("Provide specific, actionable recommendations with numerical targets where appropriate. ");
+        prompt.append("Focus on practical portfolio optimization strategies.");
+        
+        return prompt.toString();
+    }
+    
+    /**
+     * Format AI portfolio overview analysis for email display
+     */
+    private static String formatPortfolioOverviewAnalysis(String aiAnalysis, List<CryptoData> cryptoList) {
+        LoggerUtil.info(AiAdviceService.class, "Formatting portfolio overview analysis");
+        
+        StringBuilder formatted = new StringBuilder();
+        
+        // Add the AI analysis directly without header
+        formatted.append(aiAnalysis);
+        
+        // Add portfolio summary stats
+        formatted.append("\n\n📋 PORTFOLIO QUICK STATS:\n");
+        formatted.append("─────────────────────────────\n");
+        
+        double totalValue = 0;
+        double totalProfitLoss = 0;
+        String bestPerformer = "N/A";
+        double bestPerformance = Double.NEGATIVE_INFINITY;
+        
+        for (CryptoData crypto : cryptoList) {
+            totalValue += crypto.getTotalValue();
+            totalProfitLoss += crypto.getProfitLoss();
+            
+            double performance = crypto.getProfitLossPercentage() * 100;
+            if (performance > bestPerformance) {
+                bestPerformance = performance;
+                bestPerformer = crypto.symbol;
+            }
+        }
+        
+        formatted.append(String.format("• Total Value: $%.2f\n", totalValue));
+        formatted.append(String.format("• Total P&L: $%.2f (%.2f%%)\n", 
+            totalProfitLoss, totalValue > 0 ? (totalProfitLoss / totalValue) * 100 : 0));
+        formatted.append(String.format("• Holdings Count: %d assets\n", cryptoList.size()));
+        formatted.append(String.format("• Best Performer: %s (%.2f%%)\n", bestPerformer, bestPerformance));
+        
+        // Add generation timestamp
+        formatted.append("\n⏰ Analysis Generated: ");
+        formatted.append(java.time.LocalDateTime.now().format(
+            java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+        
+        return formatted.toString();
+    }
 }

@@ -123,6 +123,50 @@ public class DailyReportScheduler {
     }
     
     /**
+     * Send a manual portfolio overview email (for testing)
+     */
+    public static void sendManualPortfolioOverviewEmail() {
+        LoggerUtil.info(DailyReportScheduler.class, "Sending manual portfolio overview email");
+        
+        // If called from EDT (like a button click), run in background thread
+        if (SwingUtilities.isEventDispatchThread()) {
+            // Run in background thread to avoid blocking EDT
+            new Thread(() -> {
+                try {
+                    if (dataManager == null) {
+                        LoggerUtil.error(DailyReportScheduler.class, "Portfolio data manager not available");
+                        return;
+                    }
+                    
+                    List<CryptoData> cryptoList = dataManager.getCryptoList();
+                    if (cryptoList == null || cryptoList.isEmpty()) {
+                        LoggerUtil.warning(DailyReportScheduler.class, "No cryptocurrency data available for portfolio overview email");
+                        return;
+                    }
+                    
+                    sendPortfolioOverviewEmail(cryptoList);
+                } catch (Exception e) {
+                    LoggerUtil.error(DailyReportScheduler.class, "Error in manual portfolio overview email thread: " + e.getMessage(), e);
+                }
+            }, "ManualPortfolioOverviewThread").start();
+        } else {
+            // Not on EDT, safe to run directly
+            if (dataManager == null) {
+                LoggerUtil.error(DailyReportScheduler.class, "Portfolio data manager not available");
+                return;
+            }
+            
+            List<CryptoData> cryptoList = dataManager.getCryptoList();
+            if (cryptoList == null || cryptoList.isEmpty()) {
+                LoggerUtil.warning(DailyReportScheduler.class, "No cryptocurrency data available for portfolio overview email");
+                return;
+            }
+            
+            sendPortfolioOverviewEmail(cryptoList);
+        }
+    }
+    
+    /**
      * Check if daily reports are currently scheduled
      */
     public static boolean isScheduled() {
