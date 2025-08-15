@@ -41,6 +41,7 @@ public class AiAdviceService {
      * @return CompletableFuture containing three-word advice
      */
     public static CompletableFuture<String> getAdviceAsync(CryptoData crypto) {
+        LoggerUtil.info(AiAdviceService.class, "Getting AI advice asynchronously for: " + crypto.symbol);
         return CompletableFuture.supplyAsync(() -> {
             try {
                 String advice = getAdvice(crypto);
@@ -68,6 +69,7 @@ public class AiAdviceService {
      * @return Three-word advice string
      */
     public static String getAdvice(CryptoData crypto) {
+        LoggerUtil.info(AiAdviceService.class, "Getting AI advice for: " + crypto.symbol);
         // Use rule-based advice as primary method to avoid API issues
         if (!USE_AI_API) {
             return getSimpleAdvice(crypto);
@@ -109,6 +111,7 @@ public class AiAdviceService {
      * Create a prompt for the AI model
      */
     private static String createPrompt(CryptoData crypto) {
+        LoggerUtil.info(AiAdviceService.class, "Creating AI prompt for: " + crypto.symbol);
         double profitLossPercentage = crypto.getProfitLossPercentage() * 100;
         double entryOpportunity = crypto.getEntryOpportunity() * 100;
         
@@ -127,6 +130,7 @@ public class AiAdviceService {
      * Make API request to Google Gemini using OkHttp
      */
     private static String makeApiRequest(String prompt) throws IOException {
+        LoggerUtil.info(AiAdviceService.class, "Making API request to Google Gemini");
         System.out.println("Making API request to: " + API_URL);
         
         // Create request body for Gemini API
@@ -193,6 +197,7 @@ public class AiAdviceService {
      * Parse the API response to extract advice
      */
     private static String parseResponse(String response) {
+        LoggerUtil.info(AiAdviceService.class, "Parsing API response");
         try {
             System.out.println("Parsing response: " + response);
             
@@ -234,6 +239,7 @@ public class AiAdviceService {
      * Clean and extract advice from the generated text
      */
     private static String cleanAdviceText(String fullText) {
+        LoggerUtil.info(AiAdviceService.class, "Cleaning advice text");
         System.out.println("Cleaning text: " + fullText);
         
         // Remove markdown formatting and common AI prefixes/suffixes
@@ -274,6 +280,7 @@ public class AiAdviceService {
      * Check if a word is an action word
      */
     private static boolean isActionWord(String word) {
+        LoggerUtil.info(AiAdviceService.class, "Checking if word is action word: " + word);
         String[] actionWords = {
             "buy", "sell", "hold", "wait", "watch", "avoid", "take", "cut", "add",
             "reduce", "increase", "accumulate", "distribute", "enter", "exit"
@@ -291,6 +298,7 @@ public class AiAdviceService {
      * Check if a word is useful for investment advice
      */
     private static boolean isUsefulWord(String word) {
+        LoggerUtil.info(AiAdviceService.class, "Checking if word is useful: " + word);
         String[] usefulWords = {
             "now", "today", "soon", "exposure", "position", "profits", "gains", 
             "losses", "more", "less", "some", "all", "half", "partial", "current",
@@ -309,6 +317,7 @@ public class AiAdviceService {
      * Extract key words from response text
      */
     private static String extractKeyWords(String text) {
+        LoggerUtil.info(AiAdviceService.class, "Extracting key words from response text");
         // Simple extraction of investment-related words
         String[] words = text.toLowerCase()
             .replaceAll("[^a-z\\s]", "")
@@ -333,6 +342,7 @@ public class AiAdviceService {
      * Check if a word is investment-related
      */
     private static boolean isInvestmentWord(String word) {
+        LoggerUtil.info(AiAdviceService.class, "Checking if word is investment-related: " + word);
         String[] investmentWords = {
             "buy", "sell", "hold", "wait", "bullish", "bearish", "strong", "weak",
             "good", "bad", "positive", "negative", "pump", "dump", "moon", "crash",
@@ -353,6 +363,7 @@ public class AiAdviceService {
      * Format text to exactly three words
      */
     private static String formatToThreeWords(String text) {
+        LoggerUtil.info(AiAdviceService.class, "Formatting text to three words");
         if (text == null || text.trim().isEmpty()) {
             return "Hold And Wait";
         }
@@ -376,6 +387,7 @@ public class AiAdviceService {
      * Capitalize first letter of a word
      */
     private static String capitalizeFirst(String word) {
+        LoggerUtil.info(AiAdviceService.class, "Capitalizing first letter of word: " + word);
         if (word == null || word.isEmpty()) return word;
         return word.substring(0, 1).toUpperCase() + word.substring(1).toLowerCase();
     }
@@ -384,6 +396,7 @@ public class AiAdviceService {
      * Enhanced rule-based advice with caching support
      */
     private static String getSimpleAdvice(CryptoData crypto) {
+        LoggerUtil.info(AiAdviceService.class, "Getting simple advice for: " + crypto.symbol);
         // Check cache first
         String cachedAdvice = AiResponseCache.getCachedSimpleAdvice(crypto.symbol);
         if (cachedAdvice != null) {
@@ -398,6 +411,7 @@ public class AiAdviceService {
      * Generate simple advice based on crypto data (extracted for caching)
      */
     private static String generateSimpleAdvice(CryptoData crypto) {
+        LoggerUtil.info(AiAdviceService.class, "Generating simple advice for: " + crypto.symbol);
         double profitLoss = crypto.getProfitLossPercentage();
         double entryOpportunity = crypto.getEntryOpportunity();
         double currentPrice = crypto.currentPrice;
@@ -441,6 +455,7 @@ public class AiAdviceService {
      * Shutdown the executor service and HTTP client
      */
     public static void shutdown() {
+        LoggerUtil.info(AiAdviceService.class, "Shutting down AiAdviceService");
         executor.shutdown();
         client.dispatcher().executorService().shutdown();
         client.connectionPool().evictAll();
@@ -452,6 +467,7 @@ public class AiAdviceService {
      * @return Detailed analysis string from AI or cache
      */
     public static String getDetailedAnalysis(CryptoData crypto) {
+        LoggerUtil.info(AiAdviceService.class, "Getting detailed analysis for: " + crypto.symbol);
         return getDetailedAnalysis(crypto, false);
     }
     
@@ -462,6 +478,7 @@ public class AiAdviceService {
      * @return Detailed analysis string from AI or cache
      */
     public static String getDetailedAnalysis(CryptoData crypto, boolean forceRefresh) {
+        LoggerUtil.info(AiAdviceService.class, "Getting detailed analysis with cache control for: " + crypto.symbol + " (forceRefresh: " + forceRefresh + ")");
         LoggerUtil.info("Generating AI analysis for " + crypto.symbol + (forceRefresh ? " (forced refresh)" : ""));
         
         // Check cache first (unless forced refresh)
@@ -508,6 +525,7 @@ public class AiAdviceService {
      * Create a comprehensive prompt for detailed cryptocurrency analysis
      */
     private static String createDetailedAnalysisPrompt(CryptoData crypto) {
+        LoggerUtil.info(AiAdviceService.class, "Creating detailed analysis prompt for: " + crypto.symbol);
         double profitLoss = crypto.getProfitLossPercentage() * 100;
         double entryOpportunity = crypto.getEntryOpportunity() * 100;
         double currentToTarget = ((crypto.targetPriceLongTerm - crypto.currentPrice) / crypto.currentPrice) * 100;
@@ -549,6 +567,7 @@ public class AiAdviceService {
      * Format the AI analysis response with current data
      */
     private static String formatDetailedAnalysis(CryptoData crypto, String aiAnalysis) {
+        LoggerUtil.info(AiAdviceService.class, "Formatting detailed analysis for: " + crypto.symbol);
         StringBuilder formatted = new StringBuilder();
         
         // Add header with current data
@@ -575,6 +594,7 @@ public class AiAdviceService {
      * @return AI generated analysis text
      */
     private static String getAiResponse(String prompt) {
+        LoggerUtil.info(AiAdviceService.class, "Getting AI response for detailed analysis");
         if (!USE_AI_API) {
             LoggerUtil.warning("AI API is disabled");
             return null;
@@ -671,6 +691,7 @@ public class AiAdviceService {
      * Make API request optimized for detailed analysis
      */
     private static String makeDetailedApiRequest(String prompt) throws IOException {
+        LoggerUtil.info(AiAdviceService.class, "Making detailed API request to Google Gemini");
         LoggerUtil.debug("Making detailed analysis API request to: " + API_URL);
         
         // Create request body for Gemini API
@@ -754,6 +775,7 @@ public class AiAdviceService {
      * Parse detailed analysis response from AI API
      */
     private static String parseDetailedResponse(String response) {
+        LoggerUtil.info(AiAdviceService.class, "Parsing detailed AI response");
         try {
             LoggerUtil.debug("Parsing detailed AI response");
             
@@ -794,6 +816,7 @@ public class AiAdviceService {
      * Clean and format detailed analysis text
      */
     private static String cleanDetailedAnalysisText(String fullText) {
+        LoggerUtil.info(AiAdviceService.class, "Cleaning detailed analysis text");
         if (fullText == null || fullText.trim().isEmpty()) {
             return null;
         }

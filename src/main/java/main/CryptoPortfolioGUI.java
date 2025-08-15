@@ -58,6 +58,7 @@ public class CryptoPortfolioGUI extends JFrame {
     private static final Color LIGHT_GRAY = new Color(248, 249, 250);
     
     public CryptoPortfolioGUI() {
+        LoggerUtil.info(CryptoPortfolioGUI.class, "Initializing CryptoPortfolioGUI");
         initializeCryptoList();
         setupUI();
         loadInitialPrices();
@@ -65,6 +66,7 @@ public class CryptoPortfolioGUI extends JFrame {
     }
     
     private void initializeCryptoList() {
+        LoggerUtil.info(CryptoPortfolioGUI.class, "Initializing cryptocurrency list");
         cryptoList = new ArrayList<>();
         // Initialize with popular cryptocurrencies
         cryptoList.add(new CryptoData("bitcoin", "Bitcoin", "BTC", 0.0, 50000.0));
@@ -80,6 +82,7 @@ public class CryptoPortfolioGUI extends JFrame {
     }
     
     private void setupUI() {
+        LoggerUtil.info(CryptoPortfolioGUI.class, "Setting up user interface");
         // Set modern look and feel
         try {
             for (UIManager.LookAndFeelInfo info : UIManager.getInstalledLookAndFeels()) {
@@ -147,6 +150,7 @@ public class CryptoPortfolioGUI extends JFrame {
     }
     
     private JPanel createModernHeader() {
+        LoggerUtil.info(CryptoPortfolioGUI.class, "Creating modern header");
         JPanel headerPanel = new JPanel();
         headerPanel.setLayout(new BoxLayout(headerPanel, BoxLayout.Y_AXIS));
         headerPanel.setBackground(new Color(248, 249, 250));
@@ -172,6 +176,7 @@ public class CryptoPortfolioGUI extends JFrame {
     }
     
     private void setupModernTable() {
+        LoggerUtil.info(CryptoPortfolioGUI.class, "Setting up modern table");
         cryptoTable.setRowHeight(45);
         cryptoTable.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         cryptoTable.setBackground(Color.WHITE);
@@ -204,6 +209,7 @@ public class CryptoPortfolioGUI extends JFrame {
     }
     
     private void setupModernScrollPane(JScrollPane scrollPane) {
+        LoggerUtil.info(CryptoPortfolioGUI.class, "Setting up modern scroll pane");
         scrollPane.setBorder(null);
         scrollPane.getViewport().setBackground(Color.WHITE);
         scrollPane.setBackground(Color.WHITE);
@@ -212,6 +218,7 @@ public class CryptoPortfolioGUI extends JFrame {
     }
     
     private JPanel createModernButtonPanel() {
+        LoggerUtil.info(CryptoPortfolioGUI.class, "Creating modern button panel");
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 15, 25));
         buttonPanel.setBackground(new Color(248, 249, 250));
         
@@ -236,6 +243,7 @@ public class CryptoPortfolioGUI extends JFrame {
     }
     
     private JButton createModernButton(String text, Color bgColor) {
+        LoggerUtil.info(CryptoPortfolioGUI.class, "Creating modern button: " + text);
         JButton button = new JButton(text);
         button.setFont(new Font("Segoe UI", Font.BOLD, 13));
         button.setForeground(Color.WHITE);
@@ -264,6 +272,7 @@ public class CryptoPortfolioGUI extends JFrame {
     }
     
     private void loadInitialPrices() {
+        LoggerUtil.info(CryptoPortfolioGUI.class, "Loading initial prices");
         SwingUtilities.invokeLater(() -> {
             tableModel.setRowCount(0); // Clear existing data
             for (CryptoData crypto : cryptoList) {
@@ -274,6 +283,7 @@ public class CryptoPortfolioGUI extends JFrame {
     }
     
     private void addCryptoToTable(CryptoData crypto) {
+        LoggerUtil.info(CryptoPortfolioGUI.class, "Adding crypto to table: " + crypto.name);
         String status = getStatusEmoji(crypto);
         Object[] rowData = {
             crypto.symbol.toUpperCase(),
@@ -288,6 +298,7 @@ public class CryptoPortfolioGUI extends JFrame {
     }
     
     private void refreshPrices() {
+        LoggerUtil.info(CryptoPortfolioGUI.class, "Refreshing cryptocurrency prices");
         SwingWorker<Void, Void> worker = new SwingWorker<Void, Void>() {
             @Override
             protected Void doInBackground() throws Exception {
@@ -359,6 +370,7 @@ public class CryptoPortfolioGUI extends JFrame {
     }
     
     private void showAddCryptoDialog() {
+        LoggerUtil.info(CryptoPortfolioGUI.class, "Showing add crypto dialog");
         JDialog dialog = new JDialog(this, "Add Cryptocurrency", true);
         dialog.setLayout(new GridLayout(5, 2, 10, 10));
         
@@ -411,6 +423,7 @@ public class CryptoPortfolioGUI extends JFrame {
     }
     
     private void editExpectedPrice() {
+        LoggerUtil.info(CryptoPortfolioGUI.class, "Editing expected price");
         int selectedRow = cryptoTable.getSelectedRow();
         if (selectedRow == -1) {
             JOptionPane.showMessageDialog(this, "Please select a cryptocurrency to edit!");
@@ -439,12 +452,14 @@ public class CryptoPortfolioGUI extends JFrame {
     }
     
     private void startAutoRefresh() {
+        LoggerUtil.info(CryptoPortfolioGUI.class, "Starting auto-refresh timer");
         // Auto-refresh every 30 seconds
         refreshTimer = new Timer(30000, e -> refreshPrices());
         refreshTimer.start();
     }
     
     private void removeCrypto() {
+        LoggerUtil.info(CryptoPortfolioGUI.class, "Removing cryptocurrency");
         int selectedRow = cryptoTable.getSelectedRow();
         if (selectedRow == -1) {
             JOptionPane.showMessageDialog(this, "Please select a cryptocurrency to remove!");
@@ -463,6 +478,7 @@ public class CryptoPortfolioGUI extends JFrame {
     }
     
     private String getStatusEmoji(CryptoData crypto) {
+        LoggerUtil.info(CryptoPortfolioGUI.class, "Getting status emoji for cryptocurrency: " + crypto.name);
         double difference = crypto.currentPrice - crypto.expectedPrice;
         double percentChange = Math.abs(crypto.getPercentageChange()) * 100;
         
@@ -484,6 +500,7 @@ public class CryptoPortfolioGUI extends JFrame {
         @Override
         public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected,
                 boolean hasFocus, int row, int column) {
+            LoggerUtil.info(CryptoPortfolioGUI.class, "Rendering table cell at row " + row + ", column " + column);
             Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
             
             setBorder(new EmptyBorder(8, 12, 8, 12));
@@ -529,6 +546,7 @@ public class CryptoPortfolioGUI extends JFrame {
         double expectedPrice;
         
         public CryptoData(String id, String name, String symbol, double currentPrice, double expectedPrice) {
+            LoggerUtil.info(CryptoPortfolioGUI.class, "Creating CryptoData for: " + name);
             this.id = id;
             this.name = name;
             this.symbol = symbol;
@@ -537,12 +555,14 @@ public class CryptoPortfolioGUI extends JFrame {
         }
         
         public double getPercentageChange() {
+            LoggerUtil.info(CryptoPortfolioGUI.class, "Getting percentage change for cryptocurrency: " + name);
             if (expectedPrice == 0) return 0;
             return (currentPrice - expectedPrice) / expectedPrice;
         }
     }
     
     public static void main(String[] args) {
+        LoggerUtil.info(CryptoPortfolioGUI.class, "Starting Crypto Portfolio Tracker");
         // Set look and feel - using default for compatibility
         SwingUtilities.invokeLater(() -> new CryptoPortfolioGUI());
     }

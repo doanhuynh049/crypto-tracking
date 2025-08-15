@@ -295,6 +295,7 @@ public class CryptoMainApp extends JFrame {
     }
     
     private JPanel createContentPanel() {
+        LoggerUtil.info(CryptoMainApp.class, "Creating content panel");
         JPanel contentPanel = new JPanel(new BorderLayout());
         contentPanel.setBackground(BACKGROUND_COLOR);
         contentPanel.setBorder(new LineBorder(DIVIDER_COLOR, 1, false));
@@ -486,6 +487,7 @@ public class CryptoMainApp extends JFrame {
     }
     
     private JButton createModernButton(String text, Color bgColor) {
+        LoggerUtil.info(CryptoMainApp.class, "Creating modern button: " + text);
         JButton button = new JButton(text);
         button.setFont(new Font("Segoe UI", Font.BOLD, 12));
         button.setForeground(Color.WHITE);
@@ -499,11 +501,13 @@ public class CryptoMainApp extends JFrame {
     }
     
     private JPanel createMarketOverviewContent() {
+        LoggerUtil.info(CryptoMainApp.class, "Creating market overview content");
         return createPlaceholderContent("📊 Market Overview", 
             "Real-time market data, trending cryptocurrencies, and market analysis");
     }
     
     private JPanel createTradingViewContent() {
+        LoggerUtil.info(CryptoMainApp.class, "Creating trading view content");
         return createPlaceholderContent("📈 Trading View", 
             "Advanced charts, technical indicators, and trading tools");
     }
@@ -544,11 +548,13 @@ public class CryptoMainApp extends JFrame {
     }
     
     private JPanel createNewsContent() {
+        LoggerUtil.info(CryptoMainApp.class, "Creating news content");
         return createPlaceholderContent("📰 News & Updates", 
             "Latest cryptocurrency news, market updates, and insights");
     }
     
     private JPanel createSettingsContent() {
+        LoggerUtil.info(CryptoMainApp.class, "Creating settings content");
         JPanel settingsPanel = new JPanel(new BorderLayout());
         settingsPanel.setBackground(BACKGROUND_COLOR);
         settingsPanel.setBorder(new EmptyBorder(20, 20, 20, 20));
@@ -587,6 +593,7 @@ public class CryptoMainApp extends JFrame {
      * Create combined email and daily reports section
      */
     private JPanel createEmailAndReportsSection() {
+        LoggerUtil.info(CryptoMainApp.class, "Creating email and reports section");
         JPanel section = createSettingsSection("📧 Email Service & Daily Reports", 
             "Email service is pre-configured for automated daily portfolio reports (sent at 7:00 AM)");
         
@@ -688,6 +695,7 @@ public class CryptoMainApp extends JFrame {
      * Update combined email and daily reports status display
      */
     private void updateCombinedStatus(JLabel statusLabel) {
+        LoggerUtil.info(CryptoMainApp.class, "Updating combined status display");
         boolean isEmailAvailable = EmailService.isAvailable();
         DailyReportScheduler.SchedulerStatus schedulerStatus = DailyReportScheduler.getSchedulerStatus();
         
@@ -713,6 +721,7 @@ public class CryptoMainApp extends JFrame {
      * Create application settings section
      */
     private JPanel createApplicationSettingsSection() {
+        LoggerUtil.info(CryptoMainApp.class, "Creating application settings section");
         JPanel section = createSettingsSection("🔧 Application Settings", 
             "General application preferences and configuration");
         
@@ -780,6 +789,7 @@ public class CryptoMainApp extends JFrame {
      * Create a settings section with title and description
      */
     private JPanel createSettingsSection(String title, String description) {
+        LoggerUtil.info(CryptoMainApp.class, "Creating settings section: " + title);
         JPanel section = new JPanel(new BorderLayout());
         section.setBackground(SURFACE_COLOR);
         section.setBorder(new LineBorder(DIVIDER_COLOR, 1, true));
@@ -808,6 +818,7 @@ public class CryptoMainApp extends JFrame {
      * Create field panel with label and text field
      */
     private JPanel createFieldPanel(String labelText, String placeholder) {
+        LoggerUtil.info(CryptoMainApp.class, "Creating field panel for: " + labelText);
         JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         panel.setBackground(SURFACE_COLOR);
         
@@ -848,6 +859,7 @@ public class CryptoMainApp extends JFrame {
      * Style text field with modern appearance
      */
     private void styleTextField(JTextField field) {
+        LoggerUtil.info(CryptoMainApp.class, "Styling text field");
         field.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         field.setBorder(new CompoundBorder(
             new LineBorder(DIVIDER_COLOR, 1, true),
@@ -860,6 +872,7 @@ public class CryptoMainApp extends JFrame {
      * Update daily report status display
      */
     private void updateDailyReportStatus(JLabel statusLabel) {
+        LoggerUtil.info(CryptoMainApp.class, "Updating daily report status");
         DailyReportScheduler.SchedulerStatus status = DailyReportScheduler.getSchedulerStatus();
         
         String statusText = "<html><div style='font-family: Segoe UI; font-size: 12px;'>";
@@ -882,6 +895,7 @@ public class CryptoMainApp extends JFrame {
      * Public method to select the Portfolio tab (used by daily report scheduler)
      */
     public void selectPortfolioTab() {
+        LoggerUtil.info(CryptoMainApp.class, "Selecting portfolio tab programmatically");
         SwingUtilities.invokeLater(() -> {
             try {
                 // Find the Portfolio navigation item
@@ -899,10 +913,12 @@ public class CryptoMainApp extends JFrame {
     }
     
     private JPanel createDefaultContent(NavigationItem item) {
+        LoggerUtil.info(CryptoMainApp.class, "Creating default content for: " + item.title);
         return createPlaceholderContent(item.icon + " " + item.title, item.description);
     }
     
     private JPanel createPlaceholderContent(String title, String description) {
+        LoggerUtil.info(CryptoMainApp.class, "Creating placeholder content: " + title);
         JPanel contentPanel = new JPanel(new BorderLayout());
         contentPanel.setBackground(BACKGROUND_COLOR);
         contentPanel.setBorder(new EmptyBorder(40, 40, 40, 40));
@@ -1032,6 +1048,7 @@ public class CryptoMainApp extends JFrame {
      * Create a simple tray icon image
      */
     private Image createTrayIconImage() {
+        LoggerUtil.info(CryptoMainApp.class, "Creating tray icon image");
         // Create a simple 16x16 colored square as the tray icon
         BufferedImage image = new BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g2d = image.createGraphics();
@@ -1053,6 +1070,7 @@ public class CryptoMainApp extends JFrame {
      * Minimize application to system tray
      */
     private void minimizeToTray() {
+        LoggerUtil.info(CryptoMainApp.class, "Minimizing application to system tray");
         if (systemTray != null && trayIcon != null) {
             try {
                 setVisible(false);
@@ -1073,6 +1091,7 @@ public class CryptoMainApp extends JFrame {
      * Restore application from system tray
      */
     private void restoreFromTray() {
+        LoggerUtil.info(CryptoMainApp.class, "Restoring application from system tray");
         if (isMinimizedToTray) {
             setVisible(true);
             setState(JFrame.NORMAL);
@@ -1090,6 +1109,7 @@ public class CryptoMainApp extends JFrame {
      * Show notification message in system tray
      */
     private void showTrayMessage(String title, String message) {
+        LoggerUtil.info(CryptoMainApp.class, "Showing tray message: " + title);
         if (trayIcon != null) {
             trayIcon.displayMessage(title, message, TrayIcon.MessageType.INFO);
         }
@@ -1136,6 +1156,7 @@ public class CryptoMainApp extends JFrame {
     }
     
     public static void main(String[] args) {
+        LoggerUtil.info(CryptoMainApp.class, "Starting main method");
         LoggerUtil.logSystemEvent("Application startup initiated");
         
         // Enable modern rendering
