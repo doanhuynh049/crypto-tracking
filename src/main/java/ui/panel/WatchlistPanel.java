@@ -63,7 +63,7 @@ public class WatchlistPanel extends JPanel {
     private static final Color DIVIDER_COLOR = new Color(224, 224, 224);
     
     public WatchlistPanel() {
-        LoggerUtil.info(WatchlistPanel.class, "Constructing WatchlistPanel");
+        LoggerUtil.debug(WatchlistPanel.class, "=== Initializing Watchlist Panel ===");
         
         try {
             // Initialize data manager
@@ -114,7 +114,6 @@ public class WatchlistPanel extends JPanel {
      * Setup the main UI layout and components
      */
     private void setupUI() {
-        LoggerUtil.info(WatchlistPanel.class, "Executing setupUI()");
         setLayout(new BorderLayout());
         setBackground(BACKGROUND_COLOR);
         
@@ -132,7 +131,6 @@ public class WatchlistPanel extends JPanel {
      * Create the header panel with title and stats
      */
     private JPanel createHeaderPanel() {
-        LoggerUtil.info(WatchlistPanel.class, "Executing createHeaderPanel()");
         JPanel headerPanel = new JPanel(new BorderLayout());
         headerPanel.setBackground(BACKGROUND_COLOR);
         headerPanel.setBorder(new EmptyBorder(20, 20, 10, 20));
@@ -191,7 +189,6 @@ public class WatchlistPanel extends JPanel {
      * Create the main table panel for watchlist items
      */
     private JPanel createTablePanel() {
-        LoggerUtil.info(WatchlistPanel.class, "Executing createTablePanel()");
         JPanel tablePanel = new JPanel(new BorderLayout());
         tablePanel.setBackground(BACKGROUND_COLOR);
         tablePanel.setBorder(new EmptyBorder(0, 20, 0, 20));
@@ -227,7 +224,6 @@ public class WatchlistPanel extends JPanel {
      * Setup table appearance and behavior
      */
     private void setupTable() {
-        LoggerUtil.info(WatchlistPanel.class, "Executing setupTable()");
         watchlistTable.setRowHeight(50);
         watchlistTable.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         watchlistTable.setBackground(SURFACE_COLOR);
@@ -291,7 +287,6 @@ public class WatchlistPanel extends JPanel {
      * Create the control panel with action buttons
      */
     private JPanel createControlPanel() {
-        LoggerUtil.info(WatchlistPanel.class, "Executing createControlPanel()");
         JPanel controlPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 20, 15));
         controlPanel.setBackground(BACKGROUND_COLOR);
         controlPanel.setBorder(new EmptyBorder(10, 20, 20, 20));
@@ -344,7 +339,6 @@ public class WatchlistPanel extends JPanel {
      * Create a styled button with the given text and color
      */
     private JButton createStyledButton(String text, Color color) {
-        LoggerUtil.info(WatchlistPanel.class, "Executing createStyledButton(text=" + text + ")");
         JButton button = new JButton(text);
         button.setFont(new Font("Segoe UI", Font.BOLD, 12));
         button.setForeground(Color.WHITE);
@@ -592,7 +586,6 @@ public class WatchlistPanel extends JPanel {
      * Refresh watchlist data and update table
      */
     public void refreshWatchlistData() {
-        LoggerUtil.info(WatchlistPanel.class, "Executing refreshWatchlistData()");
         LoggerUtil.debug(WatchlistPanel.class, ">>> refreshWatchlistData() called");
         
         SwingUtilities.invokeLater(() -> {
@@ -628,9 +621,6 @@ public class WatchlistPanel extends JPanel {
      * Refresh only technical analysis without updating prices
      */
     private void refreshTechnicalAnalysisOnly() {
-        LoggerUtil.info(WatchlistPanel.class, "Executing refreshTechnicalAnalysisOnly()");
-        LoggerUtil.debug(WatchlistPanel.class, ">>> refreshTechnicalAnalysisOnly() called");
-        
         SwingUtilities.invokeLater(() -> {
             statusLabel.setText("🔄 Refreshing Technical Analysis...");
             statusLabel.setForeground(WARNING_COLOR);
@@ -662,7 +652,6 @@ public class WatchlistPanel extends JPanel {
      * Filter watchlist items by signal type
      */
     private void filterBySignal(String signalType) {
-        LoggerUtil.info(WatchlistPanel.class, "Executing filterBySignal(signalType=" + signalType + ")");
         // Clear existing rows
         tableModel.setRowCount(0);
         
@@ -721,8 +710,7 @@ public class WatchlistPanel extends JPanel {
      * Update table with current watchlist data
      */
     private void updateTableData() {
-        LoggerUtil.info(WatchlistPanel.class, "Executing updateTableData()");
-        LoggerUtil.info(WatchlistPanel.class, ">>> Clearing existing table rows");
+        LoggerUtil.info(WatchlistPanel.class, "Clearing existing table rows");
         tableModel.setRowCount(0);
         
         // Add watchlist items
@@ -765,7 +753,6 @@ public class WatchlistPanel extends JPanel {
      * Update watchlist statistics
      */
     private void updateStats() {
-        LoggerUtil.info(WatchlistPanel.class, "Executing updateStats()");
         Map<String, Object> stats = dataManager.getPortfolioStatistics();
         int totalItems = (Integer) stats.get("totalItems");
         long goodOpportunities = (Long) stats.get("goodEntryOpportunities");
@@ -799,7 +786,6 @@ public class WatchlistPanel extends JPanel {
      * Show dialog to add new watchlist item
      */
     private void showAddItemDialog() {
-        LoggerUtil.info(WatchlistPanel.class, "Executing showAddItemDialog()");
         // Create and show add item dialog
         AddWatchlistItemDialog dialog = new AddWatchlistItemDialog((JFrame) SwingUtilities.getWindowAncestor(this), dataManager);
         dialog.setVisible(true);
@@ -814,7 +800,6 @@ public class WatchlistPanel extends JPanel {
      * Remove selected watchlist item
      */
     private void removeSelectedItem() {
-        LoggerUtil.info(WatchlistPanel.class, "Executing removeSelectedItem()");
         int selectedRow = watchlistTable.getSelectedRow();
         if (selectedRow >= 0 && selectedRow < dataManager.getWatchlistItems().size()) {
             WatchlistData item = dataManager.getWatchlistItems().get(selectedRow);
@@ -840,7 +825,6 @@ public class WatchlistPanel extends JPanel {
      * Show technical analysis detail dialog
      */
     private void showTechnicalAnalysisDialog(WatchlistData item) {
-        LoggerUtil.info(WatchlistPanel.class, "Executing showTechnicalAnalysisDialog(item.symbol=" + item.symbol + ")");
         TechnicalAnalysisDetailDialog dialog = new TechnicalAnalysisDetailDialog(
             (JFrame) SwingUtilities.getWindowAncestor(this), item);
         dialog.setVisible(true);
@@ -850,7 +834,6 @@ public class WatchlistPanel extends JPanel {
      * Import watchlist from file
      */
     private void importWatchlist() {
-        LoggerUtil.info(WatchlistPanel.class, "Executing importWatchlist()");
         JFileChooser fileChooser = new JFileChooser();
         fileChooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter("JSON files", "json"));
         
@@ -871,7 +854,6 @@ public class WatchlistPanel extends JPanel {
      * Export watchlist to file
      */
     private void exportWatchlist() {
-        LoggerUtil.info(WatchlistPanel.class, "Executing exportWatchlist()");
         JFileChooser fileChooser = new JFileChooser();
         fileChooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter("JSON files", "json"));
         fileChooser.setSelectedFile(new java.io.File("watchlist_export.json"));
@@ -892,7 +874,6 @@ public class WatchlistPanel extends JPanel {
      * Get the data manager for external access
      */
     public WatchlistDataManager getDataManager() {
-        LoggerUtil.info(WatchlistPanel.class, "Executing getDataManager()");
         return dataManager;
     }
     
@@ -900,7 +881,6 @@ public class WatchlistPanel extends JPanel {
      * Get technical indicator value for display in table with comprehensive analysis
      */
     private String getTechnicalValue(WatchlistData item, String indicator) {
-        LoggerUtil.info(WatchlistPanel.class, "Executing getTechnicalValue(item.symbol=" + item.symbol + ", indicator=" + indicator + ")");
         LoggerUtil.debug(WatchlistPanel.class, "getTechnicalValue() called for " + item.symbol + 
             " | indicator: " + indicator + " | hasTechnicalAnalysis: " + item.hasTechnicalAnalysis());
         
@@ -998,7 +978,6 @@ public class WatchlistPanel extends JPanel {
      * Stop auto-refresh timer (useful for cleanup)
      */
     public void stopAutoRefresh() {
-        LoggerUtil.info(WatchlistPanel.class, "Executing stopAutoRefresh()");
         if (priceRefreshTimer != null) {
             priceRefreshTimer.stop();
             LoggerUtil.info(WatchlistPanel.class, "Stopped watchlist auto-refresh timer");
@@ -1010,7 +989,6 @@ public class WatchlistPanel extends JPanel {
      * This method is called by the auto-refresh timer
      */
     public void refreshPricesOnly() {
-        LoggerUtil.info(WatchlistPanel.class, "Executing refreshPricesOnly()");
         LoggerUtil.debug(WatchlistPanel.class, "Auto-refreshing prices only");
         
         // Run price refresh in background thread
@@ -1051,7 +1029,6 @@ public class WatchlistPanel extends JPanel {
      * Update cache status display
      */
     public void updateCacheStatus() {
-        LoggerUtil.info(WatchlistPanel.class, "Executing updateCacheStatus()");
         try {
             cache.CoinGeckoApiCache cacheInstance = cache.CoinGeckoApiCache.getInstance();
             double efficiency = cacheInstance.getCacheEfficiency();
@@ -1085,7 +1062,6 @@ public class WatchlistPanel extends JPanel {
      * Get cache status label for external access
      */
     public JLabel getCacheStatusLabel() {
-        LoggerUtil.info(WatchlistPanel.class, "Executing getCacheStatusLabel()");
         return cacheStatusLabel;
     }
 
@@ -1094,7 +1070,6 @@ public class WatchlistPanel extends JPanel {
      * This ensures we always display the most current price available
      */
     private double getFreshPrice(WatchlistData item) {
-        LoggerUtil.info(WatchlistPanel.class, "Executing getFreshPrice(item.symbol=" + item.symbol + ")");
         try {
             // First try to get from cache
             Double cachedPrice = cache.CoinGeckoApiCache.getCachedPrice(item.id);
@@ -1132,7 +1107,6 @@ public class WatchlistPanel extends JPanel {
      * Fetch single price from CoinGecko API
      */
     private Double fetchPriceFromApi(String cryptoId) {
-        LoggerUtil.info(WatchlistPanel.class, "Executing fetchPriceFromApi(cryptoId=" + cryptoId + ")");
         try {
             String apiUrl = "https://api.coingecko.com/api/v3/simple/price?ids=" + cryptoId + "&vs_currencies=usd";
             

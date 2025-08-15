@@ -275,33 +275,21 @@ public class LoggerUtil {
      * Custom formatter for file output (more detailed)
      */
     private static class FileLogFormatter extends Formatter {
-        private final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
-        
+        private final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
         @Override
         public String format(LogRecord record) {
             StringBuilder sb = new StringBuilder();
-            
             // Full timestamp
             LocalDateTime dateTime = LocalDateTime.ofInstant(
                 java.time.Instant.ofEpochMilli(record.getMillis()), 
                 java.time.ZoneId.systemDefault()
             );
             sb.append(dateTime.format(dateTimeFormatter));
-            
             // Log level
             sb.append(" [").append(record.getLevel().getName()).append("]");
-            
-            // Thread info
             sb.append(" [Thread-").append(record.getThreadID()).append("]");
-            
-            // Logger name
-            if (record.getLoggerName() != null) {
-                sb.append(" [").append(record.getLoggerName()).append("]");
-            }
-            
             // Message
             sb.append(" ").append(record.getMessage());
-            
             // Exception if present (full stack trace for file)
             if (record.getThrown() != null) {
                 sb.append("\n");
@@ -310,7 +298,6 @@ public class LoggerUtil {
                 record.getThrown().printStackTrace(pw);
                 sb.append(sw.toString());
             }
-            
             sb.append("\n");
             return sb.toString();
         }

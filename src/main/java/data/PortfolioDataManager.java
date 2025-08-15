@@ -113,10 +113,7 @@ public class PortfolioDataManager {
                         JSONObject cryptoData = jsonResponse.getJSONObject(cryptoId);
                         if (cryptoData.has("usd")) {
                             double currentPrice = cryptoData.getDouble("usd");
-                            
-                            // Cache the validated price
                             CoinGeckoApiCache.cachePrice(cryptoId, currentPrice);
-                            
                             return new ValidationResult(true, "Valid cryptocurrency ID", currentPrice, cryptoId);
                         }
                     }
@@ -258,7 +255,7 @@ public class PortfolioDataManager {
      * Refresh cryptocurrency prices
      */
     public void refreshPrices() {
-        LoggerUtil.debug(PortfolioDataManager.class, "Starting price refresh");
+        LoggerUtil.info(PortfolioDataManager.class, "Starting price refresh");
         
         if (uiBuilder != null) {
             uiBuilder.getStatusLabel().setText("📊 Portfolio Status: Refreshing...");
@@ -270,7 +267,6 @@ public class PortfolioDataManager {
             @Override
             protected Void doInBackground() throws Exception {
                 fetchCryptoPrices();
-                // AI advice is fetched separately only when needed, not on every price refresh
                 return null;
             }
             
@@ -386,7 +382,6 @@ public class PortfolioDataManager {
                         
                         // Cache the new price
                         CoinGeckoApiCache.cachePrice(crypto.id, newPrice);
-                        
                         if (oldPrice != crypto.currentPrice) {
                             updatedPrices++;
                             LoggerUtil.debug(PortfolioDataManager.class, 
@@ -714,7 +709,6 @@ public class PortfolioDataManager {
         int loadingCount = 0;
         
         for (CryptoData crypto : cryptoList) {
-            crypto.initializeAiFields();
             String status = crypto.aiStatus;
             if ("AI_SUCCESS".equals(status)) {
                 aiSuccessCount++;
@@ -972,6 +966,8 @@ public class PortfolioDataManager {
      * Save portfolio data to file
      */
     public void savePortfolioData() {
+        Thread.dumpStack();
+        LoggerUtil.info(PortfolioDataManager.class, "Saving portfolio data to file");
         // Call the private method with updated visibility or make it public
         this.savePortfolioDataPrivate();
     }
@@ -980,6 +976,7 @@ public class PortfolioDataManager {
      * Force save portfolio data without comparison (for initial setup or critical saves)
      */
     public void forceSavePortfolioData() {
+        LoggerUtil.info(PortfolioDataManager.class, "Forcing save of portfolio data");
         // Temporarily clear the hash to force save
         String originalHash = lastSavedDataHash;
         lastSavedDataHash = null;

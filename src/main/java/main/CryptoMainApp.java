@@ -5,6 +5,7 @@ import service.DailyReportScheduler;
 import service.EmailService;
 import ui.CleanupablePanel;
 import ui.panel.PortfolioContentPanel;
+import ui.panel.WatchlistPanel;
 import ui.panel.PortfolioOverviewPanel;
 import util.LoggerUtil;
 
@@ -84,7 +85,7 @@ public class CryptoMainApp extends JFrame {
             SwingUtilities.invokeLater(() -> {
                 LoggerUtil.info(CryptoMainApp.class, "Initializing daily report scheduler");
                 try {
-                    PortfolioDataManager dataManager = portfolioContent.getDataManager();
+                    PortfolioDataManager dataManager = new PortfolioDataManager();
                     DailyReportScheduler.startDailyReports(dataManager, this);
                     LoggerUtil.info(CryptoMainApp.class, "Daily report scheduler started");
                 } catch (Exception e) {

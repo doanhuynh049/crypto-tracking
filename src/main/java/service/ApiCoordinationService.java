@@ -11,7 +11,7 @@ public class ApiCoordinationService {
     private static final ApiCoordinationService INSTANCE = new ApiCoordinationService();
     private static final Object globalApiLock = new Object();
     private static volatile long lastApiCallTime = 0;
-    private static final long GLOBAL_API_DELAY_MS = 8000; // Increased to 8 seconds between any API calls
+    private static final long GLOBAL_API_DELAY_MS = 1000; // Increased to 8 seconds between any API calls
     
     // Intensive operation tracking
     private static volatile boolean intensiveOperationInProgress = false;

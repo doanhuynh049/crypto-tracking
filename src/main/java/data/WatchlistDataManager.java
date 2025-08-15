@@ -6,6 +6,7 @@ import model.WatchlistData;
 import model.EntryStatus;
 import service.ApiCoordinationService;
 import service.TechnicalAnalysisService;
+import ui.panel.WatchlistPanel;
 import util.LoggerUtil;
 
 import java.io.*;
@@ -138,7 +139,7 @@ public class WatchlistDataManager {
      */
     public List<WatchlistData> getWatchlist() {
         synchronized (lock) {
-            LoggerUtil.debug(WatchlistDataManager.class, ">>> getWatchlist() called, watchlist.size() = " + watchlist.size());
+            LoggerUtil.debug(WatchlistDataManager.class, "getWatchlist() called, watchlist.size() = " + watchlist.size());
             return new ArrayList<>(watchlist);
         }
     }
@@ -247,7 +248,7 @@ public class WatchlistDataManager {
     /**
      * Analyze all watchlist items sequentially to avoid rate limiting
      */
-    public CompletableFuture<Void> analyzeAllWatchlistItems() {
+    public CompletableFuture<Void> analyzeAllWatchlistItems(WatchlistPanel panel) {
         synchronized (lock) {
             long currentTime = System.currentTimeMillis();
             
@@ -273,7 +274,7 @@ public class WatchlistDataManager {
         
         return CompletableFuture.runAsync(() -> {
             try {
-                analyzeWatchlistItemsSequentially(0);
+                analyzeWatchlistItemsSequentially(0, panel);
                 // Note: completion notification is now handled in analyzeWatchlistItemsSequentially
                 // when all items are actually processed, not just when this method returns
             } catch (Exception e) {
@@ -285,12 +286,14 @@ public class WatchlistDataManager {
             }
         });
     }
-    
+    private void analyzeWatchlistItemsSequentially(int index) {
+            analyzeWatchlistItemsSequentially(index, null);
+        }
     /**
      * Analyze watchlist items one by one with delays to prevent rate limiting
      * This method runs asynchronously to avoid blocking the UI
      */
-    private void analyzeWatchlistItemsSequentially(int index) {
+    private void analyzeWatchlistItemsSequentially(int index, WatchlistPanel panel) {
         // Check if analysis was cancelled
         synchronized (lock) {
             if (!isAnalyzing) {
@@ -329,17 +332,18 @@ public class WatchlistDataManager {
         // Analyze current item asynchronously
         analyzeWatchlistItem(item)
             .thenRunAsync(() -> {
+                if (panel != null) panel.updateRowData(index);
                 // Schedule next item analysis with delay - using background thread to avoid UI blocking
-                CompletableFuture.delayedExecutor(12, TimeUnit.SECONDS).execute(() -> {
-                    analyzeWatchlistItemsSequentially(index + 1);
+                CompletableFuture.delayedExecutor(1, TimeUnit.SECONDS).execute(() -> {
+                    analyzeWatchlistItemsSequentially(index + 1, panel);
                 });
             })
             .exceptionally(ex -> {
                 LoggerUtil.error(WatchlistDataManager.class, 
                     "Error analyzing " + item.getSymbol() + ": " + ex.getMessage(), ex);
                 // Continue with next item even if current one fails
-                CompletableFuture.delayedExecutor(12, TimeUnit.SECONDS).execute(() -> {
-                    analyzeWatchlistItemsSequentially(index + 1);
+                CompletableFuture.delayedExecutor(1, TimeUnit.SECONDS).execute(() -> {
+                    analyzeWatchlistItemsSequentially(index + 1, panel);
                 });
                 return null;
             });
@@ -599,7 +603,7 @@ public class WatchlistDataManager {
     /**
      * Refresh prices and analysis for all items sequentially with duplicate prevention
      */
-    public void refreshPricesAndAnalysis() {
+    public void refreshPricesAndAnalysis(WatchlistPanel panel) {
         LoggerUtil.debug(WatchlistDataManager.class, ">>> refreshPricesAndAnalysis() called");
         
         synchronized (lock) {
@@ -612,7 +616,7 @@ public class WatchlistDataManager {
         }
         
         // Use the sequential analysis method with duplicate prevention
-        analyzeAllWatchlistItems()
+        analyzeAllWatchlistItems(panel)
             .thenRun(() -> {
                 LoggerUtil.info(WatchlistDataManager.class, 
                     "Refresh completed for all " + watchlist.size() + " items");
