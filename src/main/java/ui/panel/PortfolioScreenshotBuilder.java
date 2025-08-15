@@ -95,6 +95,58 @@ public class PortfolioScreenshotBuilder {
     }
     
     /**
+     * Build and save a portfolio overview screenshot for email from a PortfolioOverviewPanel
+     * @param overviewPanel The portfolio overview panel to capture
+     * @return File containing the screenshot, or null if failed
+     */
+    public static File buildPortfolioOverviewScreenshot(ui.panel.PortfolioOverviewPanel overviewPanel) {
+        LoggerUtil.info(PortfolioScreenshotBuilder.class, "Building portfolio overview screenshot from panel");
+        if (overviewPanel == null) {
+            LoggerUtil.warning(PortfolioScreenshotBuilder.class, "No portfolio overview panel available for screenshot");
+            return null;
+        }
+        
+        try {
+            LoggerUtil.info(PortfolioScreenshotBuilder.class, "Building portfolio overview screenshot for email");
+            
+            // Create the screenshot image from the panel
+            BufferedImage screenshot = createScreenshotFromPanel(overviewPanel);
+            
+            if (screenshot == null) {
+                LoggerUtil.error(PortfolioScreenshotBuilder.class, "Failed to create overview screenshot image");
+                return null;
+            }
+            
+            // Generate filename and ensure directory exists
+            String filename = generateOverviewScreenshotFilename();
+            File screenshotFile = new File(SCREENSHOT_DIR, filename);
+            
+            // Ensure directory exists
+            File parentDir = screenshotFile.getParentFile();
+            if (parentDir != null && !parentDir.exists()) {
+                boolean dirCreated = parentDir.mkdirs();
+                LoggerUtil.debug(PortfolioScreenshotBuilder.class, "Created screenshots directory: " + dirCreated);
+            }
+            
+            // Save the screenshot
+            boolean saved = ImageIO.write(screenshot, SCREENSHOT_FORMAT, screenshotFile);
+            
+            if (saved && screenshotFile.exists()) {
+                LoggerUtil.info(PortfolioScreenshotBuilder.class, "Portfolio overview screenshot saved successfully: " + screenshotFile.getAbsolutePath());
+                LoggerUtil.debug(PortfolioScreenshotBuilder.class, "Screenshot file size: " + screenshotFile.length() + " bytes");
+                return screenshotFile;
+            } else {
+                LoggerUtil.error(PortfolioScreenshotBuilder.class, "Failed to save portfolio overview screenshot to: " + screenshotFile.getAbsolutePath());
+                return null;
+            }
+            
+        } catch (Exception e) {
+            LoggerUtil.error(PortfolioScreenshotBuilder.class, "Error building portfolio overview screenshot: " + e.getMessage(), e);
+            return null;
+        }
+    }
+    
+    /**
      * Create the portfolio image (must be called on EDT)
      */
     private static BufferedImage createPortfolioImage(List<CryptoData> cryptoList) {
@@ -502,6 +554,15 @@ public class PortfolioScreenshotBuilder {
         LoggerUtil.info(PortfolioScreenshotBuilder.class, "Executing generateScreenshotFilename()");
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"));
         return "portfolio_email_" + timestamp + "." + SCREENSHOT_FORMAT.toLowerCase();
+    }
+    
+    /**
+     * Generate filename for overview screenshot
+     */
+    private static String generateOverviewScreenshotFilename() {
+        LoggerUtil.info(PortfolioScreenshotBuilder.class, "Generating overview screenshot filename");
+        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"));
+        return "portfolio_overview_email_" + timestamp + "." + SCREENSHOT_FORMAT.toLowerCase();
     }
     
     /**

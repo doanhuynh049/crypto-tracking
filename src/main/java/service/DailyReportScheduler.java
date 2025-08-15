@@ -173,7 +173,6 @@ public class DailyReportScheduler {
             return today7AM.plusDays(1); // Tomorrow at 7 AM
         }
     }
-    
     /**
      * Send the daily report
      */
@@ -211,6 +210,9 @@ public class DailyReportScheduler {
             if (emailSent) {
                 LoggerUtil.info(DailyReportScheduler.class, "Daily report sent successfully");
                 
+                // Send second email for Portfolio Overview
+                sendPortfolioOverviewEmail(cryptoList);
+                
                 // Clean up old screenshots
                 ScreenshotService.cleanupOldScreenshots();
             } else {
@@ -219,6 +221,68 @@ public class DailyReportScheduler {
             
         } catch (Exception e) {
             LoggerUtil.error(DailyReportScheduler.class, "Error generating daily report: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Send Portfolio Overview email as a second email
+     */
+    private static void sendPortfolioOverviewEmail(List<CryptoData> cryptoList) {
+        try {
+            LoggerUtil.info(DailyReportScheduler.class, "Sending Portfolio Overview email");
+            
+            // Check if email service is still available
+            if (!EmailService.isAvailable()) {
+                LoggerUtil.error(DailyReportScheduler.class, "Email service not available for Portfolio Overview email");
+                return;
+            }
+            
+            // Build Portfolio Overview screenshot
+            File overviewScreenshotFile = capturePortfolioOverviewScreenshot(cryptoList);
+            
+            // Send Portfolio Overview email
+            boolean overviewEmailSent = EmailService.sendPortfolioOverviewReport(cryptoList, overviewScreenshotFile);
+            
+            if (overviewEmailSent) {
+                LoggerUtil.info(DailyReportScheduler.class, "Portfolio Overview email sent successfully");
+            } else {
+                LoggerUtil.error(DailyReportScheduler.class, "Failed to send Portfolio Overview email");
+            }
+            
+        } catch (Exception e) {
+            LoggerUtil.error(DailyReportScheduler.class, "Error sending Portfolio Overview email: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Capture Portfolio Overview screenshot for the second email
+     */
+    private static File capturePortfolioOverviewScreenshot(List<CryptoData> cryptoList) {
+        try {
+            LoggerUtil.debug(DailyReportScheduler.class, "Building Portfolio Overview screenshot for email");
+            
+            if (dataManager == null) {
+                LoggerUtil.error(DailyReportScheduler.class, "Portfolio data manager not available for overview screenshot");
+                return null;
+            }
+            
+            // Create a PortfolioOverviewPanel instance for screenshot
+            ui.panel.PortfolioOverviewPanel overviewPanel = new ui.panel.PortfolioOverviewPanel(dataManager);
+            
+            // Build screenshot using PortfolioScreenshotBuilder with overview panel
+            File screenshotFile = ui.panel.PortfolioScreenshotBuilder.buildPortfolioOverviewScreenshot(overviewPanel);
+            
+            if (screenshotFile != null) {
+                LoggerUtil.info(DailyReportScheduler.class, "Portfolio Overview screenshot ready: " + screenshotFile.getName());
+            } else {
+                LoggerUtil.warning(DailyReportScheduler.class, "Failed to build Portfolio Overview screenshot");
+            }
+            
+            return screenshotFile;
+            
+        } catch (Exception e) {
+            LoggerUtil.error(DailyReportScheduler.class, "Error creating Portfolio Overview screenshot: " + e.getMessage(), e);
+            return null;
         }
     }
     

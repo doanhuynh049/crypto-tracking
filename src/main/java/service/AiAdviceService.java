@@ -25,7 +25,7 @@ public class AiAdviceService {
     
     // Rate limiting only - no circuit breaker
     private static volatile long lastRequestTime = 0;
-    private static final long MIN_REQUEST_INTERVAL = 10000; // 10 seconds between requests (more conservative)
+    private static final long MIN_REQUEST_INTERVAL = 10; // 10 seconds between requests (more conservative)
     
     private static final ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(1); // Reduced to 1 thread for sequential processing
     private static final OkHttpClient client = new OkHttpClient.Builder()
