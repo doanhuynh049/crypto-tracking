@@ -212,7 +212,6 @@ public class CoinGeckoApiCache {
      * @return Cached price or null if not found/expired
      */
     public static Double getCachedPrice(String cryptoId) {
-        Thread.dumpStack(); // For debugging purposes, can be removed in production
         LoggerUtil.info(CoinGeckoApiCache.class, "Fetching cached price for " + cryptoId);
         if (cryptoId == null || cryptoId.trim().isEmpty()) return null;
         

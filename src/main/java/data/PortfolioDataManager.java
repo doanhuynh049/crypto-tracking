@@ -966,7 +966,6 @@ public class PortfolioDataManager {
      * Save portfolio data to file
      */
     public void savePortfolioData() {
-        Thread.dumpStack();
         LoggerUtil.info(PortfolioDataManager.class, "Saving portfolio data to file");
         // Call the private method with updated visibility or make it public
         this.savePortfolioDataPrivate();

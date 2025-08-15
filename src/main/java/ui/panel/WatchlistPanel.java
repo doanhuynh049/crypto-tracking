@@ -597,9 +597,9 @@ public class WatchlistPanel extends JPanel {
         new Thread(() -> {
             try {
                 LoggerUtil.debug(WatchlistPanel.class, ">>> Calling dataManager.refreshPricesAndAnalysis()");
-                dataManager.refreshPricesAndAnalysis();
                 
                 SwingUtilities.invokeLater(() -> {
+                    dataManager.refreshPricesAndAnalysis(this);
                     updateTableData();
                     updateStats();
                     updateCacheStatus();
@@ -628,7 +628,7 @@ public class WatchlistPanel extends JPanel {
         
         new Thread(() -> {
             try {
-                dataManager.analyzeAllWatchlistItems().join();
+                dataManager.analyzeAllWatchlistItems(this).join();
                 
                 SwingUtilities.invokeLater(() -> {
                     updateTableData();
@@ -749,6 +749,39 @@ public class WatchlistPanel extends JPanel {
             tableModel.addRow(rowData);
         }
     }
+
+    /**
+     * Update table data for a specific row index with the latest WatchlistData
+     * @param rowIndex the index of the row to update
+     */
+    public void updateRowData(int rowIndex) {
+        List<WatchlistData> items = dataManager.getWatchlistItems();
+        if (rowIndex < 0 || rowIndex >= items.size()) {
+            LoggerUtil.warning(WatchlistPanel.class, "updateRowData: Invalid row index " + rowIndex);
+            return;
+        }
+        WatchlistData item = items.get(rowIndex);
+        double currentPrice = getFreshPrice(item);
+        Object[] rowData = {
+            item.symbol,
+            item.name,
+            priceFormat.format(currentPrice),
+            getTechnicalValue(item, "RSI"),
+            getTechnicalValue(item, "MACD"),
+            getTechnicalValue(item, "SMA_CROSS"),
+            getTechnicalValue(item, "VOLUME"),
+            getTechnicalValue(item, "SUPPORT_RESISTANCE"),
+            getTechnicalValue(item, "TREND"),
+            getTechnicalValue(item, "ENTRY_QUALITY"),
+            getTechnicalValue(item, "OVERALL_SIGNAL"),
+            item.getDaysSinceAdded() + "d"
+        };
+        for (int col = 0; col < rowData.length; col++) {
+            tableModel.setValueAt(rowData[col], rowIndex, col);
+        }
+        LoggerUtil.info(WatchlistPanel.class, "updateRowData: Updated row " + rowIndex + " for symbol " + item.symbol);
+    }
+    
     /**
      * Update watchlist statistics
      */
