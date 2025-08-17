@@ -4,6 +4,7 @@ import service.DailyReportScheduler;
 import service.EmailService;
 import ui.CleanupablePanel;
 import util.LoggerUtil;
+import data.WatchlistDataManager;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -12,6 +13,10 @@ import javax.swing.border.CompoundBorder;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.util.List;
+import java.util.stream.Collectors;
+import model.WatchlistData;
+import model.CryptoData;
 
 /**
  * Dedicated Settings Panel for application configuration
@@ -437,14 +442,12 @@ public class SettingsPanel extends JPanel implements CleanupablePanel {
      */
     private void sendWatchlistEmail() {
         LoggerUtil.info(SettingsPanel.class, "Sending watchlist email with AI evaluation");
-        
         try {
-            // Create a temporary data manager to get portfolio data
-            // This approach allows us to generate watchlist emails without requiring 
-            // direct dependency injection
-            data.PortfolioDataManager tempDataManager = new data.PortfolioDataManager();
-            java.util.List<model.CryptoData> cryptoList = tempDataManager.getCryptoList();
-            
+            WatchlistDataManager watchlistManager = new WatchlistDataManager();
+            List<WatchlistData> watchlist = watchlistManager.getWatchlist();
+            List<CryptoData> cryptoList = watchlist.stream().map(w -> (CryptoData) w).collect(Collectors.toList());
+
+            LoggerUtil.info(SettingsPanel.class, "Retrieved watchlist crypto data: " + cryptoList.size() + " items");
             if (cryptoList == null || cryptoList.isEmpty()) {
                 LoggerUtil.warning(SettingsPanel.class, "No cryptocurrency data available for watchlist email");
                 showMessage("No cryptocurrency data available for watchlist email.", 
@@ -476,44 +479,6 @@ public class SettingsPanel extends JPanel implements CleanupablePanel {
     }
     
     /**
-     * Send a simple watchlist email using available portfolio data as a fallback
-     */
-    private void sendSimpleWatchlistEmail() {
-        try {
-            // Create a temporary data manager to get portfolio data
-            data.PortfolioDataManager tempDataManager = new data.PortfolioDataManager();
-            java.util.List<model.CryptoData> cryptoList = tempDataManager.getCryptoList();
-            
-            if (cryptoList == null || cryptoList.isEmpty()) {
-                showMessage("No cryptocurrency data available for watchlist email.", 
-                           "Watchlist Email", JOptionPane.WARNING_MESSAGE);
-                return;
-            }
-            
-            // Generate AI analysis for watchlist items
-            String watchlistAnalysis = generateWatchlistAnalysis(cryptoList);
-            
-            // Send the watchlist email
-            boolean emailSent = service.EmailService.sendWatchlistEmail(cryptoList, watchlistAnalysis);
-            
-            if (emailSent) {
-                showMessage("Watchlist email with AI evaluation sent successfully!", 
-                           "Watchlist Email Sent", JOptionPane.INFORMATION_MESSAGE);
-                LoggerUtil.info(SettingsPanel.class, "Watchlist email sent successfully");
-            } else {
-                showMessage("Failed to send watchlist email. Please check the logs for details.", 
-                           "Watchlist Email Failed", JOptionPane.ERROR_MESSAGE);
-                LoggerUtil.error(SettingsPanel.class, "Failed to send watchlist email");
-            }
-            
-        } catch (Exception e) {
-            LoggerUtil.error(SettingsPanel.class, "Error in sendSimpleWatchlistEmail: " + e.getMessage(), e);
-            showMessage("Error sending watchlist email: " + e.getMessage(), 
-                       "Error", JOptionPane.ERROR_MESSAGE);
-        }
-    }
-    
-    /**
      * Generate AI analysis for watchlist items with detailed crypto-specific advice
      */
     private String generateWatchlistAnalysis(java.util.List<model.CryptoData> cryptoList) {
@@ -523,29 +488,7 @@ public class SettingsPanel extends JPanel implements CleanupablePanel {
         analysis.append("🎯 CRYPTO WATCHLIST - AI POWERED ENTRY OPPORTUNITIES\n");
         analysis.append("═══════════════════════════════════════════════\n\n");
         
-        // Ensure all cryptos have proper target prices set
-        cryptoList.forEach(this::ensureTargetPricesSet);
-        
-        // Filter for potential entry opportunities with better criteria
-        java.util.List<model.CryptoData> opportunities = cryptoList.stream()
-            .filter(crypto -> {
-                double entryOpportunity = crypto.getEntryOpportunity();
-                double currentPrice = crypto.currentPrice;
-                double targetPrice = crypto.targetPrice3Month;
-                
-                // Consider items with good entry potential or significant upside
-                return entryOpportunity > 0.05 || // 5% or better entry opportunity
-                       (targetPrice > 0 && ((targetPrice - currentPrice) / currentPrice) > 0.15); // 15% upside potential
-            })
-            .sorted((a, b) -> {
-                // Sort by entry opportunity first, then by upside potential
-                double aScore = a.getEntryOpportunity() + getUpsidePotential(a);
-                double bScore = b.getEntryOpportunity() + getUpsidePotential(b);
-                return Double.compare(bScore, aScore);
-            })
-            .collect(java.util.stream.Collectors.toList());
-        
-        if (opportunities.isEmpty()) {
+        if (cryptoList.isEmpty()) {
             // Get AI market overview analysis
             analysis.append("📊 MARKET ANALYSIS:\n");
             try {
@@ -556,12 +499,9 @@ public class SettingsPanel extends JPanel implements CleanupablePanel {
                 analysis.append("Consider waiting for better entry points or dollar-cost averaging.\n\n");
             }
         } else {
-            analysis.append(String.format("📊 Found %d potential entry opportunities:\n\n", opportunities.size()));
-            
-            int count = 0;
-            for (model.CryptoData crypto : opportunities) {
-                if (count >= 8) break; // Limit to top 8 opportunities for readability
-                
+            analysis.append(String.format("📊 Number of crypto in your watchlist \n\n", cryptoList.size()));
+            for (model.CryptoData crypto : cryptoList) {
+                LoggerUtil.info(SettingsPanel.class, "Generating analysis for crypto: " + crypto.getSymbol());
                 analysis.append(String.format("🪙 %s (%s)\n", crypto.name, crypto.symbol));
                 analysis.append(String.format("   💰 Current Price: $%.6f\n", crypto.currentPrice));
                 analysis.append(String.format("   🎯 Entry Target: $%.6f\n", crypto.expectedEntry));
@@ -589,7 +529,6 @@ public class SettingsPanel extends JPanel implements CleanupablePanel {
                 }
                 
                 analysis.append("\n");
-                count++;
             }
         }
         
@@ -601,12 +540,7 @@ public class SettingsPanel extends JPanel implements CleanupablePanel {
         analysis.append("• 🛡️ Use stop-loss orders to manage downside risk\n");
         analysis.append("• ⏰ Review and adjust targets based on market conditions\n");
         analysis.append("• 🧠 Always validate AI recommendations with your own research\n\n");
-        
-        analysis.append("⚠️ IMPORTANT DISCLAIMER:\n");
-        analysis.append("This analysis is for informational purposes only and should not be considered\n");
-        analysis.append("financial advice. Cryptocurrency investments carry significant risk of loss.\n");
-        analysis.append("Always conduct your own research and consider your risk tolerance before investing.\n");
-        
+        analysis.append("═══════════════════════════════════════════════\n");
         return analysis.toString();
     }
     
@@ -684,7 +618,7 @@ public class SettingsPanel extends JPanel implements CleanupablePanel {
             
             // Create a comprehensive market analysis prompt
             StringBuilder marketPrompt = new StringBuilder();
-            marketPrompt.append("Analyze the current cryptocurrency watchlist market conditions and provide entry opportunities analysis.\n\n");
+            marketPrompt.append("Analyze the current cryptocurrency watchlist market conditions and provide entry cryptoList analysis.\n\n");
             marketPrompt.append("PORTFOLIO SUMMARY:\n");
             marketPrompt.append("Total Cryptocurrencies: ").append(cryptoList.size()).append("\n");
             
@@ -705,7 +639,7 @@ public class SettingsPanel extends JPanel implements CleanupablePanel {
             marketPrompt.append("2. Recommended watchlist strategy for current conditions\n");
             marketPrompt.append("3. Risk management suggestions\n");
             marketPrompt.append("4. Timing recommendations for entries\n");
-            marketPrompt.append("\nKeep the analysis concise, actionable, and focused on entry opportunities.");
+            marketPrompt.append("\nKeep the analysis concise, actionable, and focused on entry cryptoList.");
             
             // Use portfolio overview analysis as a fallback since getAiResponse is private
             String aiResponse = service.AiAdviceService.getPortfolioOverviewAnalysis(cryptoList);

@@ -85,18 +85,9 @@ public class TechnicalAnalysisDetailDialog extends JDialog {
         priceLabel.setForeground(Color.WHITE);
         priceLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
         
-        // Entry status
-        String statusText = watchlistItem.getEntryStatus().toString();
-        JLabel statusLabel = new JLabel("Entry Status: " + statusText);
-        statusLabel.setFont(new Font("Segoe UI", Font.BOLD, 16));
-        statusLabel.setForeground(Color.WHITE);
-        statusLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        
         infoPanel.add(symbolLabel);
         infoPanel.add(Box.createVerticalStrut(5));
         infoPanel.add(priceLabel);
-        infoPanel.add(Box.createVerticalStrut(5));
-        infoPanel.add(statusLabel);
         
         headerPanel.add(infoPanel, BorderLayout.WEST);
         

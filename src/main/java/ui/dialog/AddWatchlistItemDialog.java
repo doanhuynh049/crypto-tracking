@@ -306,7 +306,6 @@ public class AddWatchlistItemDialog extends JDialog {
             );
             
             newItem.setNotes(notes);
-            newItem.updateEntryOpportunity();
             
             // Add to data manager
             dataManager.addWatchlistItem(newItem);

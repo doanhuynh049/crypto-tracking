@@ -6,77 +6,53 @@ import java.io.Serializable;
  * Unified data class for cryptocurrency tracking that serves as both watchlist and portfolio.
  * Items can be watched for entry opportunities AND track actual holdings.
  */
-public class WatchlistData implements Serializable {
+public class WatchlistData extends CryptoData implements Serializable {
     private static final long serialVersionUID = 1L;
-    
-    // Basic crypto information
-    public String id;
-    public String name;
-    public String symbol;
-    public double currentPrice;
-    
-    // Portfolio data (actual holdings)
-    public double holdings = 0.0;           // Amount owned (0 = watchlist only)
-    public double avgBuyPrice = 0.0;        // Average purchase price
-    
-    // Target prices and entry analysis
-    public double expectedEntry;        // Target entry price
-    public double targetPrice3Month;    // 3-month target
-    public double targetPriceLongTerm;  // Long-term target
+
+    // Only keep fields unique to WatchlistData
     public long dateAdded;              // When added to watchlist
     public String notes;                // User notes about this crypto
-    
-    // Entry quality assessment
     public double entryQualityScore;    // 0-100 score based on technical analysis
     public String entrySignal;          // STRONG_BUY, BUY, NEUTRAL, WAIT, AVOID
-    
+
     // AI advice (transient - not saved to file)
     public transient String aiAdvice = "Loading...";
     public transient boolean isAiGenerated = false;
     public transient String aiStatus = "LOADING"; // LOADING, AI_SUCCESS, FALLBACK, ERROR
     public transient long lastAiUpdate = 0;
-    
+
     // Technical Analysis data (transient - not saved to file)
     public transient TechnicalIndicators technicalIndicators;
     public transient String technicalAnalysisStatus = "LOADING"; // LOADING, SUCCESS, ERROR
     public transient long lastTechnicalUpdate = 0;
-    
+
     /**
      * Constructor for watchlist/portfolio item
      */
     public WatchlistData(String id, String name, String symbol, double currentPrice, 
                         double expectedEntry, double targetPrice3Month, double targetPriceLongTerm) {
-        this.id = id;
-        this.name = name;
-        this.symbol = symbol;
-        this.currentPrice = currentPrice;
-        this.expectedEntry = expectedEntry;
-        this.targetPrice3Month = targetPrice3Month;
-        this.targetPriceLongTerm = targetPriceLongTerm;
+        super(id, name, symbol, currentPrice, expectedEntry, expectedEntry, targetPrice3Month, targetPriceLongTerm, 0.0, 0.0);
         this.dateAdded = System.currentTimeMillis();
         this.notes = "";
         this.entryQualityScore = 0.0;
         this.entrySignal = "NEUTRAL";
-        
-        // Portfolio fields - default to watchlist only
-        this.holdings = 0.0;
-        this.avgBuyPrice = 0.0;
-        
-        // Initialize transient AI fields
         initializeAiFields();
     }
-    
+
     /**
      * Constructor for portfolio item with holdings
      */
     public WatchlistData(String id, String name, String symbol, double currentPrice, 
                         double expectedEntry, double targetPrice3Month, double targetPriceLongTerm,
                         double holdings, double avgBuyPrice) {
-        this(id, name, symbol, currentPrice, expectedEntry, targetPrice3Month, targetPriceLongTerm);
-        this.holdings = holdings;
-        this.avgBuyPrice = avgBuyPrice;
+        super(id, name, symbol, currentPrice, expectedEntry, expectedEntry, targetPrice3Month, targetPriceLongTerm, holdings, avgBuyPrice);
+        this.dateAdded = System.currentTimeMillis();
+        this.notes = "";
+        this.entryQualityScore = 0.0;
+        this.entrySignal = "NEUTRAL";
+        initializeAiFields();
     }
-    
+
     /**
      * Initialize AI and technical analysis fields (for transient data after deserialization)
      */
@@ -87,15 +63,15 @@ public class WatchlistData implements Serializable {
         if (lastAiUpdate == 0) lastAiUpdate = System.currentTimeMillis();
         if (lastTechnicalUpdate == 0) lastTechnicalUpdate = System.currentTimeMillis();
     }
-    
+
     /**
      * Calculate percentage difference from current price to expected entry
      */
     public double getEntryOpportunityPercentage() {
-        if (expectedEntry == 0) return 0;
-        return (currentPrice - expectedEntry) / expectedEntry;
+        if (getExpectedEntry() == 0) return 0;
+        return (getCurrentPrice() - getExpectedEntry()) / getExpectedEntry();
     }
-    
+
     /**
      * Get entry opportunity status
      */
@@ -107,23 +83,23 @@ public class WatchlistData implements Serializable {
         else if (percentage <= 0.15) return "⚠️ HIGH";   // 5-15% above target
         else return "❌ AVOID";                          // 15%+ above target
     }
-    
+
     /**
      * Get potential upside to 3-month target
      */
     public double getPotentialUpside3Month() {
-        if (currentPrice == 0) return 0;
-        return (targetPrice3Month - currentPrice) / currentPrice;
+        if (getCurrentPrice() == 0) return 0;
+        return (getTargetPrice3Month() - getCurrentPrice()) / getCurrentPrice();
     }
-    
+
     /**
      * Get potential upside to long-term target
      */
     public double getPotentialUpsideLongTerm() {
-        if (currentPrice == 0) return 0;
-        return (targetPriceLongTerm - currentPrice) / currentPrice;
+        if (getCurrentPrice() == 0) return 0;
+        return (getTargetPriceLongTerm() - getCurrentPrice()) / getCurrentPrice();
     }
-    
+
     /**
      * Set AI advice with status
      */
@@ -133,7 +109,7 @@ public class WatchlistData implements Serializable {
         this.aiStatus = isGenerated ? "AI_SUCCESS" : "FALLBACK";
         this.lastAiUpdate = System.currentTimeMillis();
     }
-    
+
     /**
      * Set AI advice error status
      */
@@ -143,7 +119,7 @@ public class WatchlistData implements Serializable {
         this.aiStatus = "ERROR";
         this.lastAiUpdate = System.currentTimeMillis();
     }
-    
+
     /**
      * Get AI advice with status indicator
      */
@@ -159,7 +135,7 @@ public class WatchlistData implements Serializable {
         }
         return aiAdvice;
     }
-    
+
     /**
      * Set technical analysis data
      */
@@ -174,7 +150,7 @@ public class WatchlistData implements Serializable {
             this.entrySignal = indicators.getOverallEntryQuality().toString();
         }
     }
-    
+
     /**
      * Set technical analysis error status
      */
@@ -185,7 +161,7 @@ public class WatchlistData implements Serializable {
         this.entryQualityScore = 0.0;
         this.entrySignal = "UNKNOWN";
     }
-    
+
     /**
      * Get technical analysis status with indicator
      */
@@ -202,14 +178,14 @@ public class WatchlistData implements Serializable {
         }
         return "❓ Unknown";
     }
-    
+
     /**
      * Check if technical analysis is available
      */
     public boolean hasTechnicalAnalysis() {
         return technicalIndicators != null && technicalAnalysisStatus.equals("SUCCESS");
     }
-    
+
     /**
      * Get technical analysis summary
      */
@@ -219,7 +195,7 @@ public class WatchlistData implements Serializable {
         }
         return "Technical analysis not available";
     }
-    
+
     /**
      * Get entry quality color based on score
      */
@@ -230,34 +206,14 @@ public class WatchlistData implements Serializable {
         else if (entryQualityScore >= 20) return "#FF9800";  // Orange
         else return "#F44336";  // Red
     }
-    
-    /**
-     * Get the cryptocurrency symbol
-     */
-    public String getSymbol() {
-        return symbol;
-    }
-        /**
-     * Get the cryptocurrency id
-     */
-    public String getID() {
-        return id;
-    }
-    
-    /**
-     * Get the current price
-     */
-    public double getCurrentPrice() {
-        return currentPrice;
-    }
-    
+
     /**
      * Get entry opportunity score (same as entryQualityScore for compatibility)
      */
     public double getEntryOpportunityScore() {
         return entryQualityScore;
     }
-    
+
     /**
      * Get days since added to watchlist
      */
@@ -265,53 +221,51 @@ public class WatchlistData implements Serializable {
         long currentTime = System.currentTimeMillis();
         return (currentTime - dateAdded) / (1000 * 60 * 60 * 24);
     }
-    
+
     /**
      * Update the current price for this item
      */
     public void updatePrice(double newPrice) {
-        this.currentPrice = newPrice;
-        // Update entry opportunity when price changes
-        updateEntryOpportunity();
+        setCurrentPrice(newPrice);
     }
-    
+
     /**
      * Check if this item has actual holdings (portfolio item) or is watchlist only
      */
     public boolean hasHoldings() {
-        return holdings > 0;
+        return getHoldings() > 0;
     }
-    
+
     /**
      * Check if this is a watchlist-only item (no holdings)
      */
     public boolean isWatchlistOnly() {
-        return holdings == 0;
+        return getHoldings() == 0;
     }
-    
+
     /**
      * Get total portfolio value for this holding
      */
     public double getTotalValue() {
-        return holdings * currentPrice;
+        return getHoldings() * getCurrentPrice();
     }
-    
+
     /**
      * Get profit/loss for this holding
      */
     public double getProfitLoss() {
-        if (holdings == 0 || avgBuyPrice == 0) return 0.0;
-        return getTotalValue() - (holdings * avgBuyPrice);
+        if (getHoldings() == 0 || getAvgBuyPrice() == 0) return 0.0;
+        return getTotalValue() - (getHoldings() * getAvgBuyPrice());
     }
-    
+
     /**
      * Get profit/loss percentage for this holding
      */
     public double getProfitLossPercentage() {
-        if (holdings == 0 || avgBuyPrice == 0) return 0.0;
-        return (currentPrice - avgBuyPrice) / avgBuyPrice;
+        if (getHoldings() == 0 || getAvgBuyPrice() == 0) return 0.0;
+        return (getCurrentPrice() - getAvgBuyPrice()) / getAvgBuyPrice();
     }
-    
+
     /**
      * Add to holdings (buy more)
      */
@@ -319,131 +273,33 @@ public class WatchlistData implements Serializable {
         if (amount <= 0) return;
         
         // Calculate new average buy price
-        double totalCost = (holdings * avgBuyPrice) + (amount * buyPrice);
-        holdings += amount;
-        avgBuyPrice = totalCost / holdings;
+        double totalCost = (getHoldings() * getAvgBuyPrice()) + (amount * buyPrice);
+        setHoldings(getHoldings() + amount, totalCost / (getHoldings() + amount));
     }
-    
+
     /**
      * Remove from holdings (sell)
      */
     public boolean removeHoldings(double amount) {
-        if (amount <= 0 || amount > holdings) return false;
+        if (amount <= 0 || amount > getHoldings()) return false;
         
-        holdings -= amount;
+        setHoldings(getHoldings() - amount, getAvgBuyPrice());
         
         // If all holdings sold, reset average buy price
-        if (holdings == 0) {
-            avgBuyPrice = 0.0;
+        if (getHoldings() == 0) {
+            setHoldings(0, 0.0);
         }
         
         return true;
     }
-    
-    /**
-     * Set holdings directly (for portfolio import/editing)
-     */
-    public void setHoldings(double holdings, double avgBuyPrice) {
-        this.holdings = Math.max(0, holdings);
-        this.avgBuyPrice = holdings > 0 ? avgBuyPrice : 0.0;
-    }
-    
-    /**
-     * Convert to CryptoData for analysis purposes or legacy compatibility
-     */
-    public CryptoData toCryptoData() {
-        CryptoData cryptoData = new CryptoData(
-            this.id,
-            this.name, 
-            this.symbol,
-            this.currentPrice,
-            this.expectedEntry, // Use expected entry as expected price
-            this.expectedEntry,
-            this.targetPrice3Month,
-            this.targetPriceLongTerm,
-            this.holdings,    // Include actual holdings
-            this.avgBuyPrice  // Include average buy price
-        );
-        
-        // Copy technical analysis if available
-        if (this.technicalIndicators != null) {
-            cryptoData.technicalIndicators = this.technicalIndicators;
-            cryptoData.technicalAnalysisStatus = this.technicalAnalysisStatus;
-            cryptoData.lastTechnicalUpdate = this.lastTechnicalUpdate;
-        }
-        
-        // Copy AI advice if available  
-        if (this.aiAdvice != null) {
-            cryptoData.aiAdvice = this.aiAdvice;
-            cryptoData.isAiGenerated = this.isAiGenerated;
-            cryptoData.aiStatus = this.aiStatus;
-            cryptoData.lastAiUpdate = this.lastAiUpdate;
-        }
-        
-        return cryptoData;
-    }
-    
-    /**
-     * Update entry opportunity assessment based on current market conditions
-     */
-    public void updateEntryOpportunity() {
-        // Calculate entry opportunity score based on price vs target
-        double priceRatio = getCurrentPrice() / expectedEntry;
-        double opportunityScore = 100.0;
-        
-        if (priceRatio <= 0.90) {
-            // 10%+ below target - excellent opportunity
-            opportunityScore = 90.0 + (10.0 * (0.90 - priceRatio) / 0.10);
-        } else if (priceRatio <= 0.95) {
-            // 5-10% below target - good opportunity  
-            opportunityScore = 80.0 + (10.0 * (0.95 - priceRatio) / 0.05);
-        } else if (priceRatio <= 1.05) {
-            // Within 5% of target - fair opportunity
-            opportunityScore = 60.0 + (20.0 * (1.05 - priceRatio) / 0.10);
-        } else if (priceRatio <= 1.15) {
-            // 5-15% above target - poor opportunity
-            opportunityScore = 20.0 + (40.0 * (1.15 - priceRatio) / 0.10);
-        } else {
-            // 15%+ above target - avoid
-            opportunityScore = Math.max(0.0, 20.0 * (1.30 - priceRatio) / 0.15);
-        }
-        
-        this.entryQualityScore = Math.max(0.0, Math.min(100.0, opportunityScore));
-        
-        // Update entry signal based on score
-        if (this.entryQualityScore >= 85) {
-            this.entrySignal = "STRONG_BUY";
-        } else if (this.entryQualityScore >= 70) {
-            this.entrySignal = "BUY";
-        } else if (this.entryQualityScore >= 40) {
-            this.entrySignal = "NEUTRAL";
-        } else if (this.entryQualityScore >= 20) {
-            this.entrySignal = "WAIT";
-        } else {
-            this.entrySignal = "AVOID";
-        }
-    }
-    
-    /**
-     * Get entry status enum
-     */
-    public EntryStatus getEntryStatus() {
-        double percentage = getEntryOpportunityPercentage();
-        if (percentage <= -0.10) return EntryStatus.EXCELLENT;
-        else if (percentage <= -0.05) return EntryStatus.GOOD;
-        else if (percentage <= 0.05) return EntryStatus.FAIR;
-        else if (percentage <= 0.15) return EntryStatus.HIGH;
-        else return EntryStatus.AVOID;
-    }
-    
+
     /**
      * Set target entry price
      */
     public void setTargetEntryPrice(double targetPrice) {
-        this.expectedEntry = targetPrice;
-        updateEntryOpportunity(); // Recalculate opportunity when target changes
+        setExpectedEntry(targetPrice);
     }
-    
+
     /**
      * Set notes for this watchlist item
      */
@@ -455,10 +311,10 @@ public class WatchlistData implements Serializable {
     public String toString() {
         if (hasHoldings()) {
             return String.format("%s (%s) - Holdings: %.4f @ $%.2f, Current: $%.2f, Entry: $%.2f", 
-                               name, symbol, holdings, avgBuyPrice, currentPrice, expectedEntry);
+                               getName(), getSymbol(), getHoldings(), getAvgBuyPrice(), getCurrentPrice(), getExpectedEntry());
         } else {
             return String.format("%s (%s) - Watchlist - Entry: $%.2f, Current: $%.2f, Quality: %.1f", 
-                               name, symbol, expectedEntry, currentPrice, entryQualityScore);
+                               getName(), getSymbol(), getExpectedEntry(), getCurrentPrice(), entryQualityScore);
         }
     }
 }

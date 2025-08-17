@@ -178,17 +178,6 @@ public class WatchlistDataManager {
     }
     
     /**
-     * Get watchlist items by entry status
-     */
-    public List<WatchlistData> getWatchlistByStatus(EntryStatus status) {
-        synchronized (lock) {
-            return watchlist.stream()
-                .filter(item -> item.getEntryStatus() == status)
-                .collect(Collectors.toList());
-        }
-    }
-    
-    /**
      * Update entry target for watchlist item
      */
     public void updateEntryTarget(String symbol, double targetPrice, String notes) {
@@ -218,7 +207,6 @@ public class WatchlistDataManager {
             .thenAccept(indicators -> {
                 synchronized (lock) {
                     watchlistItem.setTechnicalIndicators(indicators);
-                    watchlistItem.updateEntryOpportunity();
                     
                     LoggerUtil.info(WatchlistDataManager.class, 
                         String.format("Technical analysis completed for %s - Score: %.1f", 
@@ -446,11 +434,6 @@ public class WatchlistDataManager {
             stats.put("averageOpportunityScore", 
                 watchlist.stream().mapToDouble(WatchlistData::getEntryOpportunityScore).average().orElse(0.0));
             
-            // Status distribution
-            Map<EntryStatus, Long> statusCount = watchlist.stream()
-                .collect(Collectors.groupingBy(WatchlistData::getEntryStatus, Collectors.counting()));
-            stats.put("statusDistribution", statusCount);
-            
             return stats;
         }
     }
@@ -517,6 +500,10 @@ public class WatchlistDataManager {
                     
                     LoggerUtil.info(WatchlistDataManager.class, 
                         "Loaded " + watchlist.size() + " watchlist items");
+                    for (WatchlistData item : watchlist) {
+                        LoggerUtil.info(WatchlistDataManager.class, 
+                            ">>> Loaded watchlist item: " + item.getSymbol() + " - " + item.getName());
+                    }
                 }
             } else {
                 LoggerUtil.info(WatchlistDataManager.class, 
@@ -823,13 +810,13 @@ public class WatchlistDataManager {
             
             for (CryptoData cryptoData : portfolioData) {
                 String id = cryptoData.id;
-                
                 // Check if already exists in watchlist
                 Optional<WatchlistData> existing = watchlist.stream()
-                    .filter(item -> item.getID().equals(id))
+                    .filter(item -> item.getId().equals(id))
                     .findFirst();
-                
                 if (existing.isPresent()) {
+                    LoggerUtil.info(WatchlistDataManager.class, 
+                        "Updating existing watchlist item: " + id + " - " + cryptoData.name);
                     // Update existing item with portfolio data
                     WatchlistData item = existing.get();
                     

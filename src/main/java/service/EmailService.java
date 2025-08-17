@@ -503,8 +503,8 @@ public class EmailService {
         return """
             body {
                 font-family: 'Segoe UI', Arial, sans-serif;
-                line-height: 1.6;
-                color: #333;
+                line-height: 1.7;
+                color: #222;
                 max-width: 800px;
                 margin: 0 auto;
                 padding: 20px;
@@ -513,114 +513,88 @@ public class EmailService {
             .header {
                 background: linear-gradient(135deg, #1976D2, #42A5F5);
                 color: white;
-                padding: 30px;
-                border-radius: 10px;
+                padding: 36px 20px 30px 20px;
+                border-radius: 14px;
                 text-align: center;
-                margin-bottom: 20px;
+                margin-bottom: 28px;
+                box-shadow: 0 4px 18px rgba(25,118,210,0.10);
             }
             .header h1 {
                 margin: 0;
-                font-size: 28px;
+                font-size: 32px;
                 font-weight: bold;
+                letter-spacing: 1px;
             }
             .date {
-                margin: 10px 0 0 0;
-                opacity: 0.9;
-                font-size: 16px;
+                margin: 12px 0 0 0;
+                opacity: 0.92;
+                font-size: 17px;
             }
-            .summary {
+            .summary, .crypto-list, .ai-portfolio-main, .ai-analysis-main {
                 background: white;
-                padding: 25px;
-                border-radius: 10px;
-                margin-bottom: 20px;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                padding: 28px 22px;
+                border-radius: 12px;
+                margin-bottom: 24px;
+                box-shadow: 0 2px 12px rgba(0,0,0,0.07);
             }
-            .summary h2 {
+            .summary h2, .crypto-list h2, .ai-portfolio-main h2 {
                 margin-top: 0;
                 color: #1976D2;
                 border-bottom: 2px solid #E3F2FD;
-                padding-bottom: 10px;
+                padding-bottom: 12px;
+                font-size: 22px;
             }
-            .summary-grid {
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-                gap: 15px;
-                margin-top: 20px;
+            ul, ol {
+                margin: 10px 0 10px 24px;
+                padding-left: 18px;
             }
-            .summary-item {
-                text-align: center;
-                padding: 15px;
-                background: #F8F9FA;
-                border-radius: 8px;
-                border: 1px solid #E9ECEF;
+            ul li, ol li {
+                margin-bottom: 7px;
+                font-size: 15px;
+                line-height: 1.6;
             }
-            .summary-label {
-                font-size: 12px;
-                color: #666;
-                margin-bottom: 5px;
-                text-transform: uppercase;
-                font-weight: bold;
-            }
-            .summary-value {
-                font-size: 18px;
-                font-weight: bold;
-                color: #333;
-            }
-            .summary-value.positive {
-                color: #28A745;
-            }
-            .summary-value.negative {
-                color: #DC3545;
-            }
-            .summary-value.primary {
+            ul li::marker {
                 color: #1976D2;
-            }
-            .crypto-list {
-                background: white;
-                padding: 25px;
-                border-radius: 10px;
-                margin-bottom: 20px;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            }
-            .crypto-list h2 {
-                margin-top: 0;
-                color: #1976D2;
-                border-bottom: 2px solid #E3F2FD;
-                padding-bottom: 10px;
+                font-size: 1.1em;
             }
             .crypto-item {
                 border: 1px solid #E9ECEF;
-                border-radius: 8px;
-                padding: 15px;
-                margin-bottom: 15px;
+                border-radius: 10px;
+                padding: 18px 15px;
+                margin-bottom: 18px;
                 background: #FAFAFA;
+                transition: box-shadow 0.2s;
+            }
+            .crypto-item:hover {
+                box-shadow: 0 4px 16px rgba(25,118,210,0.08);
             }
             .crypto-header {
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
-                margin-bottom: 10px;
+                margin-bottom: 12px;
             }
             .crypto-header h3 {
                 margin: 0;
                 color: #333;
-                font-size: 16px;
+                font-size: 18px;
             }
             .crypto-price {
-                font-size: 16px;
+                font-size: 17px;
                 font-weight: bold;
                 color: #1976D2;
             }
             .crypto-details {
                 display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
                 gap: 10px;
             }
             .detail-item {
                 display: flex;
                 justify-content: space-between;
-                padding: 5px 0;
+                padding: 6px 0;
                 border-bottom: 1px solid #EEE;
+                font-size: 15px;
             }
             .label {
                 color: #666;
@@ -635,52 +609,62 @@ public class EmailService {
             .value.negative {
                 color: #DC3545;
             }
+            .value.excellent {
+                color: #1976D2;
+                font-weight: bold;
+            }
+            .value.good {
+                color: #388E3C;
+            }
+            .value.fair {
+                color: #FFA000;
+            }
             .ai-analysis-section {
-                margin-top: 15px;
-                padding: 12px;
+                margin-top: 18px;
+                padding: 14px;
                 background-color: #F8F9FA;
-                border-radius: 6px;
+                border-radius: 8px;
                 border-left: 3px solid #1976D2;
             }
             .ai-analysis-section h4 {
                 margin: 0 0 10px 0;
                 color: #1976D2;
-                font-size: 14px;
+                font-size: 15px;
                 font-weight: bold;
             }
             .ai-analysis-content {
-                font-size: 12px;
+                font-size: 13px;
                 line-height: 1.5;
                 color: #495057;
             }
             .ai-portfolio-main {
                 background: white;
-                padding: 30px;
-                border-radius: 12px;
-                margin-bottom: 20px;
-                box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+                padding: 32px 24px;
+                border-radius: 14px;
+                margin-bottom: 24px;
+                box-shadow: 0 4px 18px rgba(25,118,210,0.08);
                 border-left: 5px solid #1976D2;
             }
             .ai-portfolio-main h2 {
                 margin-top: 0;
                 color: #1976D2;
-                font-size: 24px;
+                font-size: 26px;
                 text-align: center;
                 border-bottom: 3px solid #E3F2FD;
-                padding-bottom: 15px;
-                margin-bottom: 25px;
+                padding-bottom: 16px;
+                margin-bottom: 28px;
             }
             .portfolio-stats-box {
                 background: linear-gradient(135deg, #E3F2FD, #F3E5F5);
-                padding: 20px;
-                border-radius: 10px;
-                margin-bottom: 25px;
+                padding: 22px;
+                border-radius: 12px;
+                margin-bottom: 28px;
                 border: 1px solid #BBDEFB;
             }
             .portfolio-stats-box h3 {
                 margin: 0 0 15px 0;
                 color: #1976D2;
-                font-size: 18px;
+                font-size: 19px;
                 text-align: center;
             }
             .stats-grid {
@@ -693,7 +677,7 @@ public class EmailService {
                 padding: 15px;
                 border-radius: 8px;
                 text-align: center;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                box-shadow: 0 2px 8px rgba(0,0,0,0.08);
                 border: 1px solid #E1F5FE;
             }
             .stat-label {
@@ -705,31 +689,40 @@ public class EmailService {
                 letter-spacing: 0.5px;
             }
             .stat-value {
-                font-size: 18px;
+                font-size: 19px;
                 font-weight: bold;
                 color: #333;
             }
             .ai-analysis-main {
                 background: #FAFAFA;
-                padding: 25px;
-                border-radius: 12px;
+                padding: 28px 22px;
+                border-radius: 14px;
                 border: 2px solid #E3F2FD;
-                font-size: 15px;
-                line-height: 1.7;
+                font-size: 16px;
+                line-height: 1.8;
             }
             .footer {
                 text-align: center;
-                padding: 20px;
+                padding: 22px 10px;
                 color: #666;
-                font-size: 14px;
+                font-size: 15px;
                 background: white;
-                border-radius: 10px;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                border-radius: 12px;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.08);
             }
             .footer p {
-                margin: 5px 0;
+                margin: 7px 0;
             }
-            """;
+            @media (max-width: 600px) {
+                body, .header, .summary, .crypto-list, .ai-portfolio-main, .ai-analysis-main, .footer {
+                    padding-left: 6px !important;
+                    padding-right: 6px !important;
+                }
+                .crypto-details, .stats-grid {
+                    grid-template-columns: 1fr !important;
+                }
+            }
+        """;
     }
     
     /**

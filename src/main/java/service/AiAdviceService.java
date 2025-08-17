@@ -582,10 +582,6 @@ public class AiAdviceService {
         // Add footer
         formatted.append("\n\n");
         formatted.append("═══════════════════════════════════════════════════════════\n");
-        formatted.append("⚠️ DISCLAIMER: This AI analysis is for informational purposes only.\n");
-        formatted.append("Always conduct your own research and consider your risk tolerance.\n");
-        formatted.append("Cryptocurrency investments carry significant risk of loss.\n");
-        
         return formatted.toString();
     }
     

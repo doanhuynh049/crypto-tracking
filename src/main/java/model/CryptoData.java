@@ -308,6 +308,44 @@ public class CryptoData implements Serializable {
         return "Technical analysis not available";
     }
 
+    // --- Standard Getters and Setters ---
+    public String getId() { return id; }
+    public void setId(String id) { this.id = id; }
+
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
+
+    public String getSymbol() { return symbol; }
+    public void setSymbol(String symbol) { this.symbol = symbol; }
+
+    public double getCurrentPrice() { return currentPrice; }
+    public void setCurrentPrice(double currentPrice) { this.currentPrice = currentPrice; }
+
+    public double getExpectedEntry() { return expectedEntry; }
+    public void setExpectedEntry(double expectedEntry) { this.expectedEntry = expectedEntry; }
+
+    public double getTargetPrice3Month() { return targetPrice3Month; }
+    public void setTargetPrice3Month(double targetPrice3Month) { this.targetPrice3Month = targetPrice3Month; }
+
+    public double getTargetPriceLongTerm() { return targetPriceLongTerm; }
+    public void setTargetPriceLongTerm(double targetPriceLongTerm) { this.targetPriceLongTerm = targetPriceLongTerm; }
+
+    public double getHoldings() { return holdings; }
+    // Set both holdings and avgBuyPrice together for atomic update
+    public void setHoldings(double holdings, double avgBuyPrice) {
+        this.holdings = holdings;
+        this.avgBuyPrice = avgBuyPrice;
+    }
+    public void setHoldings(double holdings) { this.holdings = holdings; }
+
+    public double getAvgBuyPrice() { return avgBuyPrice; }
+    public void setAvgBuyPrice(double avgBuyPrice) { this.avgBuyPrice = avgBuyPrice; }
+
+    // Utility: create a new CryptoData copy of this object
+    public CryptoData toCryptoData() {
+        return new CryptoData(id, name, symbol, currentPrice, expectedPrice, expectedEntry, targetPrice3Month, targetPriceLongTerm, holdings, avgBuyPrice);
+    }
+
     @Override
     public String toString() {
         LoggerUtil.info(CryptoData.class, "Converting to string for: " + name);
