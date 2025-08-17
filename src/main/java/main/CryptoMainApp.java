@@ -5,7 +5,6 @@ import service.DailyReportScheduler;
 import service.EmailService;
 import ui.CleanupablePanel;
 import ui.panel.PortfolioContentPanel;
-import ui.panel.WatchlistPanel;
 import ui.panel.PortfolioOverviewPanel;
 import util.LoggerUtil;
 
@@ -70,7 +69,9 @@ public class CryptoMainApp extends JFrame {
             // Initialize system tray if supported
             initializeSystemTray();
             
+            // Initialize daily report scheduler (will start if email is configured)
             initializeDailyReports();
+            
             LoggerUtil.info(CryptoMainApp.class, "Application initialization completed successfully");
         } catch (Exception e) {
             LoggerUtil.error(CryptoMainApp.class, "Failed to initialize application", e);
@@ -82,16 +83,10 @@ public class CryptoMainApp extends JFrame {
      */
     private void initializeDailyReports() {
         try {
-            SwingUtilities.invokeLater(() -> {
-                LoggerUtil.info(CryptoMainApp.class, "Initializing daily report scheduler");
-                try {
-                    PortfolioDataManager dataManager = new PortfolioDataManager();
-                    DailyReportScheduler.startDailyReports(dataManager, this);
-                    LoggerUtil.info(CryptoMainApp.class, "Daily report scheduler started");
-                } catch (Exception e) {
-                    LoggerUtil.error(CryptoMainApp.class, "Failed to start daily report scheduler", e);
-                }
-            });
+            LoggerUtil.info(CryptoMainApp.class, "Initializing daily report scheduler");
+            
+            // The scheduler will check if email is configured and start automatically
+            // We'll pass the main frame and data manager when we create portfolio content
             LoggerUtil.info(CryptoMainApp.class, "Daily report scheduler initialization completed");
         } catch (Exception e) {
             LoggerUtil.error(CryptoMainApp.class, "Failed to initialize daily report scheduler", e);
@@ -99,7 +94,7 @@ public class CryptoMainApp extends JFrame {
     }
     
     private void initializeNavigationItems() {
-        LoggerUtil.info(CryptoMainApp.class, "Initializing navigation items");
+        LoggerUtil.debug(CryptoMainApp.class, "Initializing navigation items");
         navigationItems = new ArrayList<>();
         navigationItems.add(new NavigationItem("📊", "Portfolio Overview", "Portfolio allocation and AI-powered rebalancing"));
         navigationItems.add(new NavigationItem("💰", "My Portfolio", "View and manage your crypto portfolio"));
@@ -111,7 +106,7 @@ public class CryptoMainApp extends JFrame {
     }
     
     private void setupUI() {
-        LoggerUtil.info(CryptoMainApp.class, "Setting up user interface");
+        LoggerUtil.debug(CryptoMainApp.class, "Setting up user interface");
         setTitle("🚀 Crypto Portfolio Manager");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         
@@ -163,7 +158,6 @@ public class CryptoMainApp extends JFrame {
     }
     
     private JPanel createNavigationPanel() {
-        LoggerUtil.info(CryptoMainApp.class, "Creating navigation panel");
         JPanel navPanel = new JPanel();
         navPanel.setLayout(new BorderLayout());
         navPanel.setBackground(NAV_COLOR);
@@ -186,7 +180,6 @@ public class CryptoMainApp extends JFrame {
     }
     
     private JPanel createNavigationHeader() {
-        LoggerUtil.debug(CryptoMainApp.class, "Creating navigation header");
         JPanel headerPanel = new JPanel();
         headerPanel.setLayout(new BoxLayout(headerPanel, BoxLayout.Y_AXIS));
         headerPanel.setBackground(NAV_COLOR);
@@ -212,7 +205,6 @@ public class CryptoMainApp extends JFrame {
     }
     
     private JPanel createNavigationItems() {
-        LoggerUtil.debug(CryptoMainApp.class, "Creating navigation item buttons");
         JPanel itemsPanel = new JPanel();
         itemsPanel.setLayout(new BoxLayout(itemsPanel, BoxLayout.Y_AXIS));
         itemsPanel.setBackground(NAV_COLOR);
@@ -228,7 +220,6 @@ public class CryptoMainApp extends JFrame {
     }
     
     private JPanel createNavigationButton(NavigationItem item) {
-        LoggerUtil.debug(CryptoMainApp.class, "Creating navigation button for: " + item.title);
         JPanel button = new JPanel(new BorderLayout());
         button.setBackground(NAV_COLOR);
         button.setBorder(new EmptyBorder(12, 20, 12, 20));
@@ -285,7 +276,6 @@ public class CryptoMainApp extends JFrame {
     }
     
     private JPanel createNavigationFooter() {
-        LoggerUtil.debug(CryptoMainApp.class, "Creating navigation footer");
         JPanel footerPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
         footerPanel.setBackground(NAV_COLOR);
         footerPanel.setBorder(new EmptyBorder(20, 20, 20, 20));
@@ -300,7 +290,6 @@ public class CryptoMainApp extends JFrame {
     }
     
     private JPanel createContentPanel() {
-        LoggerUtil.info(CryptoMainApp.class, "Creating content panel");
         JPanel contentPanel = new JPanel(new BorderLayout());
         contentPanel.setBackground(BACKGROUND_COLOR);
         contentPanel.setBorder(new LineBorder(DIVIDER_COLOR, 1, false));
@@ -357,11 +346,11 @@ public class CryptoMainApp extends JFrame {
             
             // Create new content based on selected item
             switch (item.title) {
-                case "Portfolio Overview":
-                    currentContentPanel = createPortfolioOverviewContent();
-                    break;
                 case "My Portfolio":
                     currentContentPanel = createPortfolioContent();
+                    break;
+                case "Portfolio Overview":
+                    currentContentPanel = createPortfolioOverviewContent();
                     break;
                 case "Market Overview":
                     currentContentPanel = createMarketOverviewContent();
@@ -426,7 +415,20 @@ public class CryptoMainApp extends JFrame {
             // Use the dedicated PortfolioContentPanel
             PortfolioContentPanel portfolioContent = new PortfolioContentPanel();
             contentContainer.add(portfolioContent, BorderLayout.CENTER);
+            
+            // Start daily report scheduler with portfolio data manager and main frame
+            SwingUtilities.invokeLater(() -> {
+                try {
+                    PortfolioDataManager dataManager = portfolioContent.getDataManager();
+                    DailyReportScheduler.startDailyReports(dataManager, this);
+                    LoggerUtil.info(CryptoMainApp.class, "Daily report scheduler started");
+                } catch (Exception e) {
+                    LoggerUtil.error(CryptoMainApp.class, "Failed to start daily report scheduler", e);
+                }
+            });
+            
             portfolioPanel.add(contentContainer, BorderLayout.CENTER);
+            
             LoggerUtil.info(CryptoMainApp.class, "Portfolio content panel created successfully");
             return portfolioPanel;
         } catch (Exception e) {
@@ -458,7 +460,13 @@ public class CryptoMainApp extends JFrame {
             JPanel contentContainer = new JPanel(new BorderLayout());
             contentContainer.setBackground(BACKGROUND_COLOR);
             contentContainer.setBorder(new EmptyBorder(0, 20, 20, 20));
-            PortfolioDataManager dataManager = new PortfolioDataManager();
+            
+            // Get portfolio data manager from the existing portfolio content
+            // We need to access the data manager from portfolio content
+            PortfolioContentPanel portfolioContent = new PortfolioContentPanel();
+            PortfolioDataManager dataManager = portfolioContent.getDataManager();
+            
+            // Create the portfolio overview panel
             PortfolioOverviewPanel overviewContent = new PortfolioOverviewPanel(dataManager);
             contentContainer.add(overviewContent, BorderLayout.CENTER);
             
@@ -473,7 +481,6 @@ public class CryptoMainApp extends JFrame {
     }
     
     private JButton createModernButton(String text, Color bgColor) {
-        LoggerUtil.info(CryptoMainApp.class, "Creating modern button: " + text);
         JButton button = new JButton(text);
         button.setFont(new Font("Segoe UI", Font.BOLD, 12));
         button.setForeground(Color.WHITE);
@@ -487,13 +494,11 @@ public class CryptoMainApp extends JFrame {
     }
     
     private JPanel createMarketOverviewContent() {
-        LoggerUtil.info(CryptoMainApp.class, "Creating market overview content");
         return createPlaceholderContent("📊 Market Overview", 
             "Real-time market data, trending cryptocurrencies, and market analysis");
     }
     
     private JPanel createTradingViewContent() {
-        LoggerUtil.info(CryptoMainApp.class, "Creating trading view content");
         return createPlaceholderContent("📈 Trading View", 
             "Advanced charts, technical indicators, and trading tools");
     }
@@ -534,29 +539,29 @@ public class CryptoMainApp extends JFrame {
     }
     
     private JPanel createNewsContent() {
-        LoggerUtil.info(CryptoMainApp.class, "Creating news content");
         return createPlaceholderContent("📰 News & Updates", 
             "Latest cryptocurrency news, market updates, and insights");
     }
     
     private JPanel createSettingsContent() {
-        LoggerUtil.info(CryptoMainApp.class, "Creating settings content using SettingsPanel");
+        LoggerUtil.info(CryptoMainApp.class, "Creating settings content panel using SettingsPanel class");
+        
         try {
             // Use the dedicated SettingsPanel class
             ui.panel.SettingsPanel settingsPanel = new ui.panel.SettingsPanel(this);
-            LoggerUtil.info(CryptoMainApp.class, "Settings panel created successfully using SettingsPanel class");
             return settingsPanel;
         } catch (Exception e) {
             LoggerUtil.error(CryptoMainApp.class, "Failed to create settings panel", e);
-            return createErrorContent("Failed to load settings panel");
+            return createErrorContent("Failed to load settings panel: " + e.getMessage());
         }
     }
+    
 
+    
     /**
      * Public method to select the Portfolio tab (used by daily report scheduler)
      */
     public void selectPortfolioTab() {
-        LoggerUtil.info(CryptoMainApp.class, "Selecting portfolio tab programmatically");
         SwingUtilities.invokeLater(() -> {
             try {
                 // Find the Portfolio navigation item
@@ -574,12 +579,10 @@ public class CryptoMainApp extends JFrame {
     }
     
     private JPanel createDefaultContent(NavigationItem item) {
-        LoggerUtil.info(CryptoMainApp.class, "Creating default content for: " + item.title);
         return createPlaceholderContent(item.icon + " " + item.title, item.description);
     }
     
     private JPanel createPlaceholderContent(String title, String description) {
-        LoggerUtil.info(CryptoMainApp.class, "Creating placeholder content: " + title);
         JPanel contentPanel = new JPanel(new BorderLayout());
         contentPanel.setBackground(BACKGROUND_COLOR);
         contentPanel.setBorder(new EmptyBorder(40, 40, 40, 40));
@@ -709,7 +712,6 @@ public class CryptoMainApp extends JFrame {
      * Create a simple tray icon image
      */
     private Image createTrayIconImage() {
-        LoggerUtil.info(CryptoMainApp.class, "Creating tray icon image");
         // Create a simple 16x16 colored square as the tray icon
         BufferedImage image = new BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g2d = image.createGraphics();
@@ -731,7 +733,6 @@ public class CryptoMainApp extends JFrame {
      * Minimize application to system tray
      */
     private void minimizeToTray() {
-        LoggerUtil.info(CryptoMainApp.class, "Minimizing application to system tray");
         if (systemTray != null && trayIcon != null) {
             try {
                 setVisible(false);
@@ -752,7 +753,6 @@ public class CryptoMainApp extends JFrame {
      * Restore application from system tray
      */
     private void restoreFromTray() {
-        LoggerUtil.info(CryptoMainApp.class, "Restoring application from system tray");
         if (isMinimizedToTray) {
             setVisible(true);
             setState(JFrame.NORMAL);
@@ -770,7 +770,6 @@ public class CryptoMainApp extends JFrame {
      * Show notification message in system tray
      */
     private void showTrayMessage(String title, String message) {
-        LoggerUtil.info(CryptoMainApp.class, "Showing tray message: " + title);
         if (trayIcon != null) {
             trayIcon.displayMessage(title, message, TrayIcon.MessageType.INFO);
         }
@@ -817,7 +816,6 @@ public class CryptoMainApp extends JFrame {
     }
     
     public static void main(String[] args) {
-        LoggerUtil.info(CryptoMainApp.class, "Starting main method");
         LoggerUtil.logSystemEvent("Application startup initiated");
         
         // Enable modern rendering

@@ -8,7 +8,6 @@ import util.LoggerUtil;
  */
 public class CryptoApp {
     public static void main(String[] args) {
-        LoggerUtil.info(CryptoApp.class, "Starting Crypto Portfolio Manager application");
         System.out.println("🚀 Starting Crypto Portfolio Manager...");
         
         // Set system properties for better UI rendering

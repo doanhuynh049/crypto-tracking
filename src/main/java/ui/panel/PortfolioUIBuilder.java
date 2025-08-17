@@ -479,7 +479,6 @@ public class PortfolioUIBuilder {
      * Show add cryptocurrency dialog using the new dedicated dialog class
      */
     private void showAddCryptoDialog() {
-        LoggerUtil.info(PortfolioUIBuilder.class, "Opening Add Cryptocurrency dialog");
         Frame parentFrame = (Frame) SwingUtilities.getWindowAncestor(cryptoTable);
         AddCryptoDialog dialog = new AddCryptoDialog(parentFrame, dataManager);
         dialog.showDialog();
@@ -782,7 +781,6 @@ public class PortfolioUIBuilder {
      * Update AI status display based on the crypto list
      */
     public void updateAiStatus(List<CryptoData> cryptoList) {
-        LoggerUtil.info(PortfolioUIBuilder.class, "Updating AI status for portfolio");
         if (cryptoList == null || cryptoList.isEmpty()) {
             return;
         }
@@ -794,7 +792,7 @@ public class PortfolioUIBuilder {
         int loadingCount = 0;
         
         for (CryptoData crypto : cryptoList) {
-            LoggerUtil.info(PortfolioUIBuilder.class, "Updating AI status for: " + crypto.symbol);
+            // Ensure AI fields are initialized
             crypto.initializeAiFields();
             
             String status = crypto.aiStatus;

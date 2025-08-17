@@ -1217,4 +1217,291 @@ public class EmailService {
             this.toEmail = toEmail;
         }
     }
+
+    /**
+     * Send watchlist email with AI evaluation
+     * @param cryptoList The list of cryptocurrency data
+     * @param watchlistAnalysis The AI-generated watchlist analysis
+     * @return true if email was sent successfully, false otherwise
+     */
+    public static boolean sendWatchlistEmail(java.util.List<model.CryptoData> cryptoList, String watchlistAnalysis) {
+        LoggerUtil.info(EmailService.class, "Sending watchlist email with AI evaluation");
+        if (!isAvailable()) {
+            LoggerUtil.error(EmailService.class, "Email service not available for watchlist email");
+            return false;
+        }
+        
+        try {
+            EmailConfig config = getEmailConfig();
+            
+            // Create email session
+            Session session = createEmailSession(config);
+            
+            // Create message
+            MimeMessage message = new MimeMessage(session);
+            message.setFrom(new InternetAddress(config.fromEmail));
+            message.setRecipients(Message.RecipientType.TO, InternetAddress.parse(config.toEmail));
+            message.setSubject("🎯 Crypto Watchlist - AI Entry Opportunities Report");
+            
+            // Create the content
+            String htmlContent = createWatchlistHtmlReport(cryptoList, watchlistAnalysis);
+            message.setContent(htmlContent, "text/html; charset=utf-8");
+            
+            // Send email
+            Transport.send(message);
+            
+            LoggerUtil.info(EmailService.class, "Watchlist email sent successfully");
+            return true;
+            
+        } catch (Exception e) {
+            LoggerUtil.error(EmailService.class, "Failed to send watchlist email: " + e.getMessage(), e);
+            return false;
+        }
+    }
+    
+    /**
+     * Create HTML content for watchlist email
+     * @param cryptoList The list of cryptocurrency data
+     * @param watchlistAnalysis The AI-generated analysis
+     * @return HTML content string
+     */
+    private static String createWatchlistHtmlReport(java.util.List<model.CryptoData> cryptoList, String watchlistAnalysis) {
+        LoggerUtil.info(EmailService.class, "Creating HTML content for watchlist email");
+        
+        StringBuilder html = new StringBuilder();
+        html.append("<!DOCTYPE html>");
+        html.append("<html>");
+        html.append("<head>");
+        html.append("<meta charset='UTF-8'>");
+        html.append("<meta name='viewport' content='width=device-width, initial-scale=1.0'>");
+        html.append("<title>Crypto Watchlist Report</title>");
+        html.append(getEmailStyles());
+        html.append("</head>");
+        html.append("<body>");
+        
+        // Header
+        html.append("<div class='header'>");
+        html.append("<h1>🎯 Crypto Watchlist Report</h1>");
+        html.append("<p class='date'>").append(java.time.LocalDateTime.now().format(
+            java.time.format.DateTimeFormatter.ofPattern("EEEE, MMMM dd, yyyy 'at' HH:mm"))).append("</p>");
+        html.append("</div>");
+        
+        // Watchlist Analysis Section
+        html.append("<div class='ai-analysis-main'>");
+        html.append("<h2>🤖 AI-Powered Entry Opportunities Analysis</h2>");
+        html.append("<div style='background-color: #f8f9fa; padding: 20px; border-radius: 10px; border-left: 4px solid #1976d2; margin: 20px 0;'>");
+        html.append(formatWatchlistAnalysisForEmail(watchlistAnalysis));
+        html.append("</div>");
+        html.append("</div>");
+        
+        // Individual Opportunities Section (if available)
+        if (cryptoList != null && !cryptoList.isEmpty()) {
+            html.append("<div class='crypto-list'>");
+            html.append("<h2>💰 Top Entry Opportunities</h2>");
+            
+            // Ensure all cryptos have proper target prices before filtering
+            for (model.CryptoData crypto : cryptoList) {
+                ensureTargetPricesSet(crypto);
+            }
+            
+            // Filter and sort opportunities with better criteria
+            java.util.List<model.CryptoData> opportunities = cryptoList.stream()
+                .filter(crypto -> {
+                    double entryOpportunity = crypto.getEntryOpportunity();
+                    double upside = crypto.targetPrice3Month > 0 ? 
+                        ((crypto.targetPrice3Month - crypto.currentPrice) / crypto.currentPrice) : 0;
+                    // Consider items with good entry opportunity OR significant upside potential
+                    return entryOpportunity > 0.05 || upside > 0.15; // 5% entry opportunity OR 15% upside
+                })
+                .sorted((a, b) -> {
+                    // Sort by combined score of entry opportunity and upside potential
+                    double aScore = a.getEntryOpportunity() + getUpsidePotential(a);
+                    double bScore = b.getEntryOpportunity() + getUpsidePotential(b);
+                    return Double.compare(bScore, aScore);
+                })
+                .limit(10) // Top 10 opportunities
+                .collect(java.util.stream.Collectors.toList());
+            
+            if (opportunities.isEmpty()) {
+                html.append("<div class='no-opportunities'>");
+                html.append("<p style='color: #666; font-style: italic; text-align: center; padding: 20px;'>");
+                html.append("⚠️ No significant entry opportunities found at current market levels. Consider waiting for better entry points or using dollar-cost averaging.</p>");
+                html.append("</div>");
+            } else {
+                for (model.CryptoData crypto : opportunities) {
+                    html.append("<div class='crypto-item'>");
+                    html.append("<div class='crypto-header'>");
+                    html.append("<h3>").append(crypto.name).append(" (").append(crypto.symbol).append(")</h3>");
+                    html.append("<div class='price'>$").append(String.format("%.6f", crypto.currentPrice)).append("</div>");
+                    html.append("</div>");
+                    
+                    html.append("<div class='crypto-details'>");
+                    
+                    // Entry opportunity info
+                    double entryOpportunity = crypto.getEntryOpportunity() * 100;
+                    String opportunityClass = entryOpportunity >= 15 ? "excellent" : entryOpportunity >= 10 ? "good" : "fair";
+                    
+                    html.append("<div class='detail-item'>");
+                    html.append("<span class='label'>Entry Target:</span>");
+                    html.append("<span class='value'>$").append(String.format("%.6f", crypto.expectedEntry)).append("</span>");
+                    html.append("</div>");
+                    
+                    html.append("<div class='detail-item'>");
+                    html.append("<span class='label'>Entry Opportunity:</span>");
+                    html.append("<span class='value ").append(opportunityClass).append("'>");
+                    html.append(String.format("%.1f%%", entryOpportunity));
+                    html.append("</span>");
+                    html.append("</div>");
+                    
+                    html.append("<div class='detail-item'>");
+                    html.append("<span class='label'>3M Target:</span>");
+                    html.append("<span class='value'>$").append(String.format("%.6f", crypto.targetPrice3Month));
+                    double upside = getUpsidePotential(crypto) * 100;
+                    String upsideClass = upside > 0 ? "positive" : upside < 0 ? "negative" : "";
+                    html.append(" <span class='value ").append(upsideClass).append("'>(");
+                    html.append(upside > 0 ? "+" : "").append(String.format("%.1f%%", upside)).append(")</span>");
+                    html.append("</div>");
+                    
+                    // Show current holdings if any
+                    if (crypto.holdings > 0) {
+                        html.append("<div class='detail-item'>");
+                        html.append("<span class='label'>Holdings:</span>");
+                        html.append("<span class='value'>").append(String.format("%.6f", crypto.holdings));
+                        html.append(" ($").append(String.format("%.2f", crypto.getTotalValue())).append(")</span>");
+                        html.append("</div>");
+                    }
+                    
+                    html.append("</div>");
+                    html.append("</div>");
+                }
+            }
+            
+            html.append("</div>");
+        }
+        
+        // Footer
+        html.append("<div class='footer'>");
+        html.append("<p>🤖 This watchlist report was automatically generated by your Crypto Portfolio Tracker</p>");
+        html.append("<p style='color: #999; font-size: 12px; margin-top: 15px;'>");
+        html.append("⚠️ Disclaimer: This analysis is for informational purposes only. Always conduct your own research and consider your risk tolerance. Cryptocurrency investments carry significant risk of loss.");
+        html.append("</p>");
+        html.append("</div>");
+        
+        html.append("</body>");
+        html.append("</html>");
+        
+        return html.toString();
+    }
+    
+    /**
+     * Format watchlist analysis for email display
+     * @param analysis The watchlist analysis text
+     * @return Formatted HTML for email display
+     */
+    private static String formatWatchlistAnalysisForEmail(String analysis) {
+        LoggerUtil.info(EmailService.class, "Formatting watchlist analysis for email");
+        if (analysis == null || analysis.trim().isEmpty()) {
+            return "<p style='color: #666; font-style: italic;'>No watchlist analysis available</p>";
+        }
+        try {
+            StringBuilder html = new StringBuilder();
+            String[] lines = analysis.split("\n");
+            boolean inOpportunitySection = false;
+            boolean inList = false;
+            for (String line : lines) {
+                line = line.trim();
+                if (line.isEmpty()) continue;
+                if (line.startsWith("🎯") || line.startsWith("═")) {
+                    if (inList) { html.append("</ul>"); inList = false; }
+                    if (line.startsWith("🎯")) {
+                        html.append("<h3 style='color: #1976D2; margin: 0 0 15px 0; font-size: 16px;'>").append(line).append("</h3>");
+                    }
+                } else if (line.startsWith("📊 Found") || line.startsWith("⚠️ No significant")) {
+                    if (inList) { html.append("</ul>"); inList = false; }
+                    html.append("<div style='background-color: #e3f2fd; padding: 15px; border-radius: 8px; margin: 10px 0; font-weight: bold; color: #1976d2;'>");
+                    html.append(line);
+                    html.append("</div>");
+                    inOpportunitySection = line.startsWith("📊 Found");
+                } else if (line.startsWith("🪙")) {
+                    if (inList) { html.append("</ul>"); inList = false; }
+                    html.append("<div style='margin: 20px 0 10px 0; font-weight: bold; color: #333; font-size: 15px;'>");
+                    html.append(line);
+                    html.append("</div>");
+                } else if ((line.startsWith("* ") || line.startsWith("- ")) && inOpportunitySection) {
+                    if (!inList) { html.append("<ul style='margin: 8px 0 8px 20px; color: #444;'>"); inList = true; }
+                    String item = line.substring(2).trim();
+                    html.append("<li>").append(item).append("</li>");
+                } else if (line.startsWith("   ") && inOpportunitySection) {
+                    if (inList) { html.append("</ul>"); inList = false; }
+                    String detail = line.substring(3);
+                    if (detail.contains("🤖 AI Insights:") || detail.contains("🤖 AI Analysis:")) {
+                        html.append("<div style='background-color: #fff3e0; padding: 10px; border-left: 3px solid #ff9800; margin: 5px 0; font-style: italic;'>");
+                        html.append(detail);
+                        html.append("</div>");
+                    } else {
+                        html.append("<div style='margin: 3px 0; padding-left: 15px; color: #555;'>");
+                        html.append(detail);
+                        html.append("</div>");
+                    }
+                } else if (line.startsWith("💡")) {
+                    if (inList) { html.append("</ul>"); inList = false; }
+                    html.append("<h4 style='color: #4caf50; margin: 25px 0 10px 0; font-size: 14px;'>");
+                    html.append(line);
+                    html.append("</h4>");
+                    inOpportunitySection = false;
+                } else if ((line.startsWith("•") || line.startsWith("* ") || line.startsWith("- ")) && !inOpportunitySection) {
+                    if (!inList) { html.append("<ul style='margin: 8px 0 8px 20px; color: #666;'>"); inList = true; }
+                    String item = line.startsWith("•") ? line.substring(1).trim() : line.substring(2).trim();
+                    html.append("<li>").append(item).append("</li>");
+                } else if (line.startsWith("⚠️ DISCLAIMER")) {
+                    if (inList) { html.append("</ul>"); inList = false; }
+                    html.append("<div style='background-color: #ffebee; border: 1px solid #f44336; border-radius: 5px; padding: 15px; margin: 20px 0; color: #c62828;'>");
+                    html.append("<strong>").append(line).append("</strong>");
+                } else if (line.startsWith("Always conduct") || line.startsWith("Cryptocurrency investments")) {
+                    if (inList) { html.append("</ul>"); inList = false; }
+                    html.append("<div style='color: #c62828; margin: 5px 0;'>");
+                    html.append(line);
+                    html.append("</div>");
+                    if (line.startsWith("Cryptocurrency investments")) {
+                        html.append("</div>"); // Close disclaimer div
+                    }
+                } else {
+                    if (inList) { html.append("</ul>"); inList = false; }
+                    html.append("<div style='margin: 8px 0; line-height: 1.4;'>");
+                    html.append(line);
+                    html.append("</div>");
+                }
+            }
+            if (inList) { html.append("</ul>"); }
+            return html.toString();
+        } catch (Exception e) {
+            LoggerUtil.error(EmailService.class, "Error formatting watchlist analysis for email: " + e.getMessage());
+            return "<p style='color: #666; font-style: italic;'>Error formatting watchlist analysis</p>";
+        }
+    }
+
+    /**
+     * Ensure target prices are properly set for crypto data
+     */
+    private static void ensureTargetPricesSet(model.CryptoData crypto) {
+        if (crypto.expectedEntry == 0) {
+            crypto.expectedEntry = crypto.currentPrice * 0.95; // 5% below current price
+        }
+        if (crypto.targetPrice3Month == 0) {
+            crypto.targetPrice3Month = crypto.currentPrice * 1.20; // 20% above current price
+        }
+        if (crypto.targetPriceLongTerm == 0) {
+            crypto.targetPriceLongTerm = crypto.currentPrice * 1.50; // 50% above current price
+        }
+    }
+    
+    /**
+     * Get upside potential percentage for a crypto
+     */
+    private static double getUpsidePotential(model.CryptoData crypto) {
+        if (crypto.currentPrice == 0 || crypto.targetPrice3Month == 0) {
+            return 0.0;
+        }
+        return (crypto.targetPrice3Month - crypto.currentPrice) / crypto.currentPrice;
+    }
 }
